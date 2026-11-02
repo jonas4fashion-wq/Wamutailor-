@@ -33,7 +33,7 @@ TABLES = {
     "orders": {"fields": ["customer_name", "customer_phone", "product", "quantity", "unit_price", "total", "deposit", "balance", "delivery_date", "status", "notes"], "required": ["customer_name", "customer_phone", "product"]},
     "payments": {"fields": ["order_id", "customer_name", "amount", "method", "payment_date", "reference", "notes"], "required": ["order_id", "amount"]},
     "inventory": {"fields": ["item_name", "unit", "quantity", "unit_cost", "minimum_stock", "notes"], "required": ["item_name", "unit"]},
-    "products": {"fields": ["name", "sku", "category", "description", "price", "currency", "active"], "required": ["name", "price"]},
+    "products": {"fields": ["name", "sku", "category", "description", "price", "currency", "stock_quantity", "active"], "required": ["name", "price"]},
 }
 TABLE_OBJECTS = {}
 for table_name, spec in TABLES.items():
@@ -67,6 +67,8 @@ def startup():
             con.execute(text("ALTER TABLE products ADD COLUMN photo_data BYTEA" if engine.dialect.name != "sqlite" else "ALTER TABLE products ADD COLUMN photo_data BLOB"))
         if "photo_content_type" not in product_cols:
             con.execute(text("ALTER TABLE products ADD COLUMN photo_content_type TEXT"))
+        if "stock_quantity" not in product_cols:
+            con.execute(text("ALTER TABLE products ADD COLUMN stock_quantity TEXT DEFAULT '0'"))
 
 
 
@@ -168,7 +170,8 @@ def list_records(module: str, _: str = Depends(require_admin)):
         raise HTTPException(404, "Unknown module")
     table = TABLE_OBJECTS[module]
     with engine.connect() as con:
-        rows = con.execute(select(table).order_by(table.c.id.desc()).limit(300)).mappings().all()
+        query = select(*[column for column in table.c if column.name not in ("photo_data",)])
+        rows = con.execute(query.order_by(table.c.id.desc()).limit(300)).mappings().all()
     return [dict(row) for row in rows]
 
 
@@ -305,6 +308,29 @@ async def upload_product_photo(product_id: int, photo: UploadFile = File(...), _
         if result.rowcount == 0:
             raise HTTPException(404, "Product not found")
     return {"uploaded": True, "product_id": product_id, "photo_url": f"/api/products/{product_id}/photo"}
+
+
+@app.get("/api/client/catalog")
+def client_catalog():
+    table = TABLE_OBJECTS["products"]
+    with engine.connect() as con:
+        rows = con.execute(
+            select(*[column for column in table.c if column.name not in ("photo_data", "photo_content_type", "created_at", "id")])
+        ).mappings().all()
+    catalog = []
+    for row in rows:
+        item = dict(row)
+        active = str(item.get("active") or "yes").strip().lower()
+        try:
+            stock = float(item.get("stock_quantity") or 0)
+        except (TypeError, ValueError):
+            stock = 0
+        if active == "no" or stock <= 0:
+            continue
+        item["photo_url"] = f"/api/products/{row['id']}/photo"
+        item["in_stock"] = True
+        catalog.append(item)
+    return catalog
 
 
 @app.get("/api/products/{product_id}/photo")
