@@ -42,6 +42,15 @@ TABLES = {
     "payroll": {"fields": ["staff_name", "pay_period", "basic_salary", "allowances", "deductions", "net_pay", "payment_date", "payment_method", "reference", "status", "notes"], "required": ["staff_name", "pay_period", "basic_salary"]},
     "chat_messages": {"fields": ["customer_phone", "sender_role", "sender_name", "message", "read_by_admin", "read_by_client"], "required": ["customer_phone", "sender_role", "message"]},
 }
+product_photos = Table(
+    "product_photos", metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("product_id", Integer, nullable=False, index=True),
+    Column("photo_data", LargeBinary, nullable=False),
+    Column("photo_content_type", Text, nullable=False),
+    Column("created_at", Text, server_default=text("CURRENT_TIMESTAMP")),
+)
+
 TABLE_OBJECTS = {}
 for table_name, spec in TABLES.items():
     TABLE_OBJECTS[table_name] = Table(
@@ -690,6 +699,48 @@ async def upload_product_photo(product_id: int, photo: UploadFile = File(...), _
             raise HTTPException(404, "Product not found")
     return {"uploaded": True, "product_id": product_id, "photo_url": f"/api/products/{product_id}/photo"}
 
+
+@app.post("/api/admin/products/{product_id}/photos")
+async def upload_product_photos(product_id: int, photos: list[UploadFile] = File(...), _: str = Depends(require_admin)):
+    if not photos or len(photos) > 12:
+        raise HTTPException(422, "Select between 1 and 12 photos.")
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    prepared = []
+    total_size = 0
+    for photo in photos:
+        if photo.content_type not in allowed:
+            raise HTTPException(415, "Only JPG, PNG or WEBP images are allowed.")
+        data = await photo.read(4 * 1024 * 1024 + 1)
+        if len(data) > 4 * 1024 * 1024:
+            raise HTTPException(413, "A photo is larger than 4 MB.")
+        if not data.startswith((bytes.fromhex("ffd8ff"), bytes.fromhex("89504e470d0a1a0a"), b"RIFF")):
+            raise HTTPException(415, "Invalid image file.")
+        total_size += len(data)
+        prepared.append((data, photo.content_type))
+    if total_size > 20 * 1024 * 1024:
+        raise HTTPException(413, "Combined upload must be 20 MB or smaller.")
+    table = TABLE_OBJECTS["products"]
+    with engine.begin() as con:
+        product = con.execute(select(table).where(table.c.id == product_id)).mappings().first()
+        if not product:
+            raise HTTPException(404, "Product not found.")
+        con.execute(product_photos.delete().where(product_photos.c.product_id == product_id))
+        urls = []
+        for data, content_type in prepared:
+            result = con.execute(product_photos.insert().values(product_id=product_id, photo_data=data, photo_content_type=content_type))
+            photo_id = result.inserted_primary_key[0]
+            urls.append("/api/products/" + str(product_id) + "/photos/" + str(photo_id))
+        con.execute(table.update().where(table.c.id == product_id).values(photo_data=prepared[0][0], photo_content_type=prepared[0][1]))
+    return {"uploaded": len(prepared), "photo_urls": urls}
+
+@app.get("/api/products/{product_id}/photos/{photo_id}")
+def get_product_gallery_photo(product_id: int, photo_id: int):
+    from fastapi.responses import Response
+    with engine.connect() as con:
+        row = con.execute(select(product_photos.c.photo_data, product_photos.c.photo_content_type).where(product_photos.c.id == photo_id, product_photos.c.product_id == product_id)).first()
+    if not row:
+        raise HTTPException(404, "Photo not found.")
+    return Response(content=row.photo_data, media_type=row.photo_content_type)
 
 @app.get("/api/client/catalog")
 def client_catalog():
