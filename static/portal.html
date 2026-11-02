@@ -62,7 +62,7 @@ async function loadCatalog(){
   if(!products.length){root.textContent="No products are currently listed as in stock.";return}
   products.forEach(p=>{
    const card=document.createElement("article");card.className="product";
-   if(p.photo_url){const img=document.createElement("img");img.src=p.photo_url;img.alt=p.name||"WamuTailor product";img.loading="lazy";img.onerror=()=>img.style.display="none";card.appendChild(img)}
+   const photoUrls=p.photo_urls&&p.photo_urls.length?p.photo_urls:(p.photo_url?[p.photo_url]:[]);if(photoUrls.length){const img=document.createElement("img");img.src=photoUrls[0];img.alt=p.name||"WamuTailor product";img.loading="lazy";img.onerror=()=>img.style.display="none";card.appendChild(img);if(photoUrls.length>1){const thumbs=document.createElement("div");thumbs.style.cssText="display:flex;gap:6px;padding:8px;overflow-x:auto";photoUrls.forEach((url,index)=>{const thumb=document.createElement("button");thumb.type="button";thumb.style.cssText="padding:2px;border:1px solid var(--gold);background:#111;border-radius:6px;flex:0 0 52px";const preview=document.createElement("img");preview.src=url;preview.alt="Product photo "+(index+1);preview.style.cssText="width:46px;height:46px;object-fit:cover;border-radius:4px";thumb.appendChild(preview);thumb.onclick=()=>{img.src=url};thumbs.appendChild(thumb)});card.appendChild(thumbs)}}
    const details=document.createElement("div");details.className="details";
    const title=document.createElement("h3");title.textContent=p.name||"WamuTailor Product";details.appendChild(title);
    if(p.category){const cat=document.createElement("p");cat.textContent=p.category;details.appendChild(cat)}
