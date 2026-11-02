@@ -47,7 +47,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <section class="panel"><h2>Order Production Workflow</h2><p class="muted">Track each customer order through cutting, sewing, finishing and delivery. Assign a staff member and deadline to every stage.</p><div id="workflowForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px"><label>Order<select id="wfOrder"><option value="">Choose an order</option></select></label><label>Production stage<select id="wfStage"><option>Measurements confirmation</option><option>Pattern making</option><option>Fabric cutting</option><option>Sewing</option><option>Fitting</option><option>Finishing</option><option>Quality check</option><option>Ready for collection</option><option>Delivered</option></select></label><label>Assigned staff<select id="wfStaff"><option value="">Choose staff</option></select></label><label>Start date<input id="wfStart" type="date"></label><label>Deadline<input id="wfDue" type="date"></label><label>Status<select id="wfStatus"><option>To Do</option><option>In Progress</option><option>Done</option><option>Blocked</option></select></label><label style="grid-column:1/-1">Instructions / notes<input id="wfNotes" placeholder="Fabric, fitting notes, alterations…"></label></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary" id="wfSave" type="button">Add production stage</button><button class="action" id="wfRefresh" type="button">Refresh workflow</button><button class="action" id="wfCancel" type="button" style="display:none">Cancel edit</button></div><div id="workflowList" style="margin-top:14px" class="muted">Choose an order to see its production stages.</div></section>
 <section class="panel"><h2>Employee Performance Report</h2><p class="muted">Review completed work, attendance and recorded payroll payments for each employee.</p><button class="action" id="loadStaffPerformance" type="button">Refresh employee report</button><div id="staffPerformance" class="muted" style="margin-top:12px">Click to load employee performance.</div></section>
 <section class="panel"><h2>Staff Task Overview</h2><p class="muted">Review assignments, deadlines and overdue work by staff member.</p><button class="action" id="loadTaskOverview" type="button">Refresh task overview</button><div id="taskOverview" class="muted" style="margin-top:12px">Click to load staff tasks.</div></section>
-<section class="panel" id="profilePanel" style="display:none"><h2>Customer Profile</h2><div id="profileContent"></div><button class="action" id="closeProfile" type="button">Close profile</button></section><section class="panel"><h2>Records</h2><input id="recordSearch" placeholder="Search records..." style="max-width:360px"><button class="action" id="exportBtn" type="button">Export CSV</button><div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></section>
+<section class="panel" id="profilePanel" style="display:none"><h2>Customer Profile</h2><div id="profileContent"></div><button class="action" id="closeProfile" type="button">Close profile</button></section><section class="panel" id="adminChatPanel"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h2>Client Messages</h2><p class="muted">Reply to customers who contact WamuTailor from their portal.</p></div><button class="action" type="button" id="refreshChatInbox">Refresh inbox</button></div><div class="grid" style="grid-template-columns:minmax(180px,1fr) minmax(260px,2fr);gap:12px"><div><h3>Conversations</h3><div id="adminChatInbox" class="muted">Loading conversations…</div></div><div><h3 id="adminChatTitle">Select a customer</h3><div id="adminChatLog" style="height:260px;overflow:auto;background:#111;border:1px solid var(--line);border-radius:10px;padding:10px">No conversation selected.</div><form id="adminChatForm" style="display:flex;gap:8px;margin-top:10px"><input id="adminChatInput" maxlength="2000" placeholder="Write a reply…" style="flex:1;max-width:none" disabled><button type="submit" id="adminChatSend" disabled>Send</button></form><div id="adminChatMessage" class="muted"></div></div></div></section>
+<section class="panel"><h2>Records</h2><input id="recordSearch" placeholder="Search records..." style="max-width:360px"><button class="action" id="exportBtn" type="button">Export CSV</button><div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></section>
 <p class="sub">WamuTailor Management · Keep regular database backups and verify each order and payment.</p>
 </main>
 <script>
@@ -99,6 +100,47 @@ async function loadBrandHero(){
  }catch(e){/* keep the elegant black-and-gold fallback when no product photo is available */}
 }
 document.querySelectorAll(".quick-links a[data-module]").forEach(link=>link.addEventListener("click",()=>{const module=link.dataset.module;if(configs[module]){current=module;renderNav();renderForm();loadRecords();}}));
+let activeChatPhone="";
+async function loadAdminChatInbox(){
+ const root=document.getElementById("adminChatInbox");
+ try{
+  const rows=await api("/api/admin/chat/inbox");root.innerHTML="";
+  if(!rows.length){root.textContent="No client messages yet.";return}
+  rows.forEach(row=>{
+   const b=document.createElement("button");b.type="button";b.className="action";b.style.cssText="display:block;width:100%;text-align:left;margin:5px 0;white-space:normal";
+   b.textContent=(row.sender_name||row.customer_phone)+" · "+row.customer_phone+" · "+(row.message||"").slice(0,55);
+   if(row.read_by_admin==="no")b.textContent="● "+b.textContent;
+   b.onclick=()=>openAdminChat(row.customer_phone);root.appendChild(b);
+  });
+ }catch(e){root.textContent=e.message}
+}
+async function openAdminChat(phone){
+ activeChatPhone=phone;document.getElementById("adminChatTitle").textContent="Conversation · "+phone;
+ document.getElementById("adminChatInput").disabled=false;document.getElementById("adminChatSend").disabled=false;
+ await loadAdminChatThread();
+}
+async function loadAdminChatThread(){
+ if(!activeChatPhone)return;
+ const root=document.getElementById("adminChatLog");
+ try{
+  const rows=await api("/api/admin/chat/"+encodeURIComponent(activeChatPhone));root.innerHTML="";
+  if(!rows.length){root.textContent="No messages yet.";return}
+  rows.forEach(row=>{
+   const bubble=document.createElement("div");bubble.style.cssText="max-width:85%;padding:9px 11px;margin:7px 0;border-radius:10px;white-space:pre-wrap;overflow-wrap:anywhere;background:"+(row.sender_role==="admin"?"#6e5525":"#292929")+";color:#fff;"+(row.sender_role==="admin"?"margin-left:auto;":"");
+   bubble.textContent=(row.sender_role==="admin"?"You: ":"Client: ")+row.message;root.appendChild(bubble);
+  });
+  root.scrollTop=root.scrollHeight;
+ }catch(e){root.textContent=e.message}
+}
+document.getElementById("refreshChatInbox").onclick=loadAdminChatInbox;
+document.getElementById("adminChatForm").addEventListener("submit",async event=>{
+ event.preventDefault();if(!activeChatPhone)return;
+ const input=document.getElementById("adminChatInput"),message=input.value.trim();if(!message)return;
+ const button=document.getElementById("adminChatSend");button.disabled=true;
+ try{await api("/api/admin/chat/"+encodeURIComponent(activeChatPhone),{method:"POST",body:JSON.stringify({message})});input.value="";await loadAdminChatThread();await loadAdminChatInbox()}
+ catch(e){document.getElementById("adminChatMessage").textContent=e.message}
+ finally{button.disabled=false}
+});
 async function loadBusinessOverview(){
  const root=document.getElementById("overview");root.textContent="Loading business overview…";
  try{
@@ -294,5 +336,5 @@ document.getElementById("saveBtn").onclick=async()=>{const btn=document.getEleme
 
 document.getElementById('recordSearch').addEventListener('input',()=>{const q=document.getElementById('recordSearch').value.toLowerCase();document.querySelectorAll('#tbody tr').forEach(tr=>tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none')});
 document.getElementById('exportBtn').onclick=()=>{const cols=['id',...configs[current].fields.map(x=>x[0])];const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';const csv=[cols.join(','),...cachedRows.map(row=>cols.map(k=>quote(row[k])).join(','))].join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='wamutailor-'+current+'.csv';a.click();URL.revokeObjectURL(url)};
-renderNav();renderForm();loadRecords();loadBusinessOverview();loadBrandHero();
+renderNav();renderForm();loadRecords();loadBusinessOverview();loadBrandHero();loadAdminChatInbox();setInterval(()=>{loadAdminChatInbox();loadAdminChatThread()},20000);
 </script></body></html>
