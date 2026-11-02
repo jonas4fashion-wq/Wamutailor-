@@ -12,12 +12,25 @@
 .client-hero-links{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
 .client-hero-links a{display:inline-block;text-decoration:none;color:var(--gold);border:1px solid #80652d;background:rgba(0,0,0,.62);padding:9px 13px;border-radius:8px;font-size:13px}
 @media(max-width:600px){.client-hero{min-height:245px}.client-hero-copy p{font-size:14px}}
+.portal-topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)}
+.portal-nav{display:flex;gap:8px;flex-wrap:wrap}.portal-nav a{color:var(--gold);text-decoration:none;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+.product-actions{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}.product-actions input{width:68px;max-width:68px;margin:0;padding:9px}.product-actions button{flex:1;padding:10px 8px}
+.cart-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.chat-panel{display:flex;flex-direction:column;min-height:330px}.chat-log{height:250px;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:10px;background:#101010;border:1px solid var(--line);border-radius:10px}
+.chat-bubble{max-width:85%;padding:10px 12px;border-radius:12px;background:#292929;align-self:flex-start;white-space:pre-wrap;overflow-wrap:anywhere}
+.chat-bubble.client{background:#d8b45e;color:#17130b;align-self:flex-end}
+.chat-meta{font-size:11px;opacity:.7;margin-top:4px}
+.chat-compose{display:flex;gap:8px;margin-top:10px}.chat-compose input{max-width:none;flex:1;margin:0}
+@media(max-width:650px){.chat-log{height:220px}.chat-compose button{padding:10px 13px}}
+
 
 </style></head><body><header><div class="brand">WAMUTAILOR</div><div class="muted">SECURE CLIENT PORTAL · <a href="/" style="color:var(--gold)">BOOK HOME</a></div></header>
 <main><section class="panel" id="login"><h1>Welcome back</h1><p class="muted">Sign in to view your personal orders, measurements and payments.</p>
 <input id="phone" placeholder="Phone number" autocomplete="username"><input id="password" type="password" placeholder="Password" autocomplete="current-password"><button onclick="signIn()">Sign in</button><div id="msg"></div></section>
-<section id="data"><section class="client-hero" id="clientHero"><div class="client-hero-copy"><div class="eyebrow">WAMUTAILOR FASHION HOUSE · KIGALI</div><h1 id="welcome">Welcome to WamuTailor</h1><p>Your personal tailoring experience — bespoke suits, refined Kaftan and Senator shirts, and ready-to-wear pieces crafted with care.</p><div class="client-hero-links"><a href="#orders">My Orders</a><a href="#measurements">My Measurements</a><a href="#catalog">Explore Collection</a></div></div></section><p class="muted">Your personal WamuTailor account</p><section class="panel" id="catalogSection"><h2>Available in Store</h2><p class="muted">Explore ready-to-wear pieces currently available from WamuTailor.</p><div id="catalogList" class="catalog">Loading collection…</div></section><div class="grid">
-<section class="panel" id="ordersPanel"><h2>My Orders</h2><div id="ordersList"></div></section><section class="panel" id="measurementsPanel"><h2>My Measurements</h2><p class="muted">Your measurements are recorded by a WamuTailor staff member during your fitting or consultation. You can review the saved measurements here.</p><div id="measurementsList"></div></section><section class="panel"><h2>My Payments</h2><div id="payments"></div></section><section class="panel"><h2>Payment Method · MTN MoMo</h2><p class="muted">Use the official WamuTailor payment details below when making a payment. Please share your payment confirmation with WamuTailor and keep your receipt.</p><div class="item"><div><strong style="color:var(--gold)">MoMo Code</strong></div><div style="font-size:24px;font-weight:800;letter-spacing:.08em">962969</div><div><strong style="color:var(--gold)">Account Name</strong></div><div>MR JII DESIGN LTD</div><div><strong style="color:var(--gold)">Phone Number</strong></div><div>+250 784 520 085</div></div></section></div><section class="panel"><h2>Security · Change PIN</h2><p class="muted">Change your portal sign-in password. Use at least 10 characters.</p><input id="oldPin" type="password" placeholder="Current password"><input id="newPin" type="password" placeholder="New password"><button onclick="changePin()">Change PIN</button><div id="pinMsg" class="muted"></div></section><p><a href="/policies" style="color:var(--gold)">WamuTailor policies</a></p><button onclick="signOut()">Sign out</button></section></main>
+<section id="data"><section class="client-hero" id="clientHero"><div class="client-hero-copy"><div class="eyebrow">WAMUTAILOR FASHION HOUSE · KIGALI</div><h1 id="welcome">Welcome to WamuTailor</h1><p>Your personal tailoring experience — bespoke suits, refined Kaftan and Senator shirts, and ready-to-wear pieces crafted with care.</p><div class="client-hero-links"><a href="#orders">My Orders</a><a href="#measurements">My Measurements</a><a href="#catalog">Explore Collection</a></div></div></section><p class="muted">Your personal WamuTailor account</p><section class="panel" id="catalogSection"><h2>Available in Store</h2><p class="muted">Explore ready-to-wear pieces currently available from WamuTailor.</p><div id="catalogList" class="catalog">Loading collection…</div></section>
+<section class="panel" id="cartPanel"><h2>Shopping Cart</h2><div id="cartItems" class="muted">Your cart is empty.</div><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px"><strong id="cartTotal">Total: 0 RWF</strong><button id="checkoutCart" type="button">Place Order</button></div><div id="cartMessage" class="muted"></div></section>
+<div class="grid">
+<section class="panel" id="ordersPanel"><h2>My Orders</h2><div id="ordersList"></div></section><section class="panel" id="measurementsPanel"><h2>My Measurements</h2><p class="muted">Your measurements are recorded by a WamuTailor staff member during your fitting or consultation. You can review the saved measurements here.</p><div id="measurementsList"></div></section><section class="panel"><h2>My Payments</h2><div id="payments"></div></section><section class="panel chat-panel" id="clientChat"><h2>Chat with WamuTailor <span style="color:#4bd477;font-size:12px">● Online support</span></h2><p class="muted">Vugana n'ubuyobozi bwa WamuTailor hano.</p><div id="chatLog" class="chat-log" aria-live="polite">Loading messages…</div><form id="chatForm" class="chat-compose"><input id="chatInput" maxlength="2000" placeholder="Andika ubutumwa bwawe..." autocomplete="off" required><button type="submit" aria-label="Send message">Send</button></form><div id="chatMessage" class="muted"></div></section><section class="panel"><h2>Payment Method · MTN MoMo</h2><p class="muted">Use the official WamuTailor payment details below when making a payment. Please share your payment confirmation with WamuTailor and keep your receipt.</p><div class="item"><div><strong style="color:var(--gold)">MoMo Code</strong></div><div style="font-size:24px;font-weight:800;letter-spacing:.08em">962969</div><div><strong style="color:var(--gold)">Account Name</strong></div><div>MR JII DESIGN LTD</div><div><strong style="color:var(--gold)">Phone Number</strong></div><div>+250 784 520 085</div></div></section></div><section class="panel"><h2>Security · Change PIN</h2><p class="muted">Change your portal sign-in password. Use at least 10 characters.</p><input id="oldPin" type="password" placeholder="Current password"><input id="newPin" type="password" placeholder="New password"><button onclick="changePin()">Change PIN</button><div id="pinMsg" class="muted"></div></section><p><a href="/policies" style="color:var(--gold)">WamuTailor policies</a></p><button onclick="signOut()">Sign out</button></section></main>
 <script>
 let token=sessionStorage.getItem("wt_client_token")||"";
 function msg(t){document.getElementById("msg").textContent=t}
@@ -25,8 +38,75 @@ async function call(url,opts={}){const r=await fetch(url,{...opts,headers:{"Cont
 async function signIn(){try{const d=await call("/api/client/login",{method:"POST",body:JSON.stringify({phone:document.getElementById("phone").value,password:document.getElementById("password").value})});token=d.access_token;sessionStorage.setItem("wt_client_token",token);await load()}catch(e){msg(e.message)}}
 function card(x){const el=document.createElement("div");el.className="item";if(x.status){const stage=document.createElement("div");stage.style.cssText="color:#d8b45e;font-weight:700;margin-bottom:8px";stage.textContent="ORDER STATUS · "+x.status;el.appendChild(stage)}Object.entries(x).filter(([k,v])=>v!==null&&v!==""&&!["id","created_at","customer_phone","customer_name"].includes(k)).forEach(([k,v])=>{const p=document.createElement("div");p.textContent=k.replaceAll("_"," ")+": "+v;el.appendChild(p)});return el}
 function fill(id,rows,empty){const el=document.getElementById(id);el.innerHTML="";if(!rows.length){el.textContent=empty;return}rows.forEach(x=>el.appendChild(card(x)))}
-async function loadCatalog(){const root=document.getElementById("catalogList");try{const r=await fetch("/api/client/catalog");if(!r.ok)throw Error("Could not load products");const products=await r.json();const hero=document.getElementById("clientHero");const featured=products.find(p=>p.photo_url);if(featured&&hero){hero.style.backgroundImage='linear-gradient(90deg,rgba(0,0,0,.88),rgba(0,0,0,.20)),url("'+featured.photo_url+'")';}root.innerHTML="";if(!products.length){root.textContent="No products are currently listed as in stock. Please check back soon.";return}products.forEach(p=>{const card=document.createElement("article");card.className="product";if(p.photo_url){const img=document.createElement("img");img.src=p.photo_url;img.alt=p.name||"WamuTailor product";img.loading="lazy";img.onerror=()=>{img.style.display="none"};card.appendChild(img)}const details=document.createElement("div");details.className="details";const title=document.createElement("h3");title.textContent=p.name||"WamuTailor Product";details.appendChild(title);if(p.category){const cat=document.createElement("p");cat.textContent=p.category;details.appendChild(cat)}if(p.description){const desc=document.createElement("p");desc.textContent=p.description;details.appendChild(desc)}const price=document.createElement("div");price.className="price";price.textContent=(p.currency||"RWF")+" "+(p.price||"Price on request");details.appendChild(price);const stock=document.createElement("div");stock.className="stock";stock.textContent="In stock · "+p.stock_quantity+" available";details.appendChild(stock);card.appendChild(details);root.appendChild(card)})}catch(e){root.textContent="Product catalogue is temporarily unavailable."}}
-async function load(){try{const d=await call("/api/client/me");document.getElementById("login").style.display="none";document.getElementById("data").style.display="block";document.getElementById("welcome").textContent="Hello, "+d.customer.name;fill("ordersList",d.orders,"No orders yet.");fill("measurementsList",d.measurements,"No measurements saved yet.");fill("payments",d.payments,"No payments recorded yet.");await loadCatalog()}catch(e){token="";sessionStorage.removeItem("wt_client_token");document.getElementById("login").style.display="block";document.getElementById("data").style.display="none";msg(e.message)}}
+let shoppingCart=[];
+const money=value=>Number(value||0).toLocaleString("en-US",{maximumFractionDigits:0})+" RWF";
+function renderCart(){
+ const root=document.getElementById("cartItems");root.innerHTML="";
+ if(!shoppingCart.length){root.textContent="Your cart is empty.";document.getElementById("cartTotal").textContent="Total: 0 RWF";return}
+ shoppingCart.forEach(item=>{
+  const row=document.createElement("div");row.className="cart-line";
+  const label=document.createElement("span");label.textContent=item.name+" × "+item.quantity;
+  const price=document.createElement("strong");price.textContent=money(item.price*item.quantity);
+  const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";remove.onclick=()=>{shoppingCart=shoppingCart.filter(x=>x.product_id!==item.product_id);renderCart()};
+  row.append(label,price,remove);root.appendChild(row);
+ });
+ document.getElementById("cartTotal").textContent="Total: "+money(shoppingCart.reduce((sum,item)=>sum+item.price*item.quantity,0));
+}
+async function loadCatalog(){
+ const root=document.getElementById("catalogList");
+ try{
+  const r=await fetch("/api/client/catalog");if(!r.ok)throw Error("Could not load products");
+  const products=await r.json();const hero=document.getElementById("clientHero");const featured=products.find(p=>p.photo_url);
+  if(featured&&hero)hero.style.backgroundImage='linear-gradient(90deg,rgba(0,0,0,.88),rgba(0,0,0,.20)),url("'+featured.photo_url+'")';
+  root.innerHTML="";
+  if(!products.length){root.textContent="No products are currently listed as in stock.";return}
+  products.forEach(p=>{
+   const card=document.createElement("article");card.className="product";
+   if(p.photo_url){const img=document.createElement("img");img.src=p.photo_url;img.alt=p.name||"WamuTailor product";img.loading="lazy";img.onerror=()=>img.style.display="none";card.appendChild(img)}
+   const details=document.createElement("div");details.className="details";
+   const title=document.createElement("h3");title.textContent=p.name||"WamuTailor Product";details.appendChild(title);
+   if(p.category){const cat=document.createElement("p");cat.textContent=p.category;details.appendChild(cat)}
+   if(p.description){const desc=document.createElement("p");desc.textContent=p.description;details.appendChild(desc)}
+   const priceValue=Number(String(p.price||0).replace(/,/g,""))||0;
+   const price=document.createElement("div");price.className="price";price.textContent=(p.currency||"RWF")+" "+priceValue.toLocaleString("en-US");details.appendChild(price);
+   const stock=document.createElement("div");stock.className="stock";stock.textContent="IN STOCK · "+p.stock_quantity+" AVAILABLE";details.appendChild(stock);
+   const actions=document.createElement("div");actions.className="product-actions";
+   const qty=document.createElement("input");qty.type="number";qty.min="1";qty.max=String(Math.min(50,Number(p.stock_quantity)||1));qty.value="1";qty.setAttribute("aria-label","Quantity");
+   const add=document.createElement("button");add.type="button";add.textContent="Add to Cart";
+   add.onclick=()=>{
+    const quantity=Math.floor(Number(qty.value));
+    if(!Number.isInteger(quantity)||quantity<1||quantity>Number(p.stock_quantity)){document.getElementById("cartMessage").textContent="Please choose a quantity available in stock.";return}
+    const existing=shoppingCart.find(x=>x.product_id===p.id);
+    if(existing){if(existing.quantity+quantity>Number(p.stock_quantity)){document.getElementById("cartMessage").textContent="Not enough stock for this quantity.";return}existing.quantity+=quantity}
+    else shoppingCart.push({product_id:p.id,name:p.name,price:priceValue,quantity});
+    document.getElementById("cartMessage").textContent=p.name+" added to your cart.";renderCart();
+   };
+   actions.append(qty,add);details.appendChild(actions);card.appendChild(details);root.appendChild(card);
+  });
+ }catch(e){root.textContent="Product catalogue is temporarily unavailable."}
+}
+document.getElementById("checkoutCart").addEventListener("click",async()=>{
+ const message=document.getElementById("cartMessage");if(!shoppingCart.length){message.textContent="Your cart is empty.";return}
+ const button=document.getElementById("checkoutCart");button.disabled=true;message.textContent="Placing your order…";
+ try{const result=await call("/api/client/cart/checkout",{method:"POST",body:JSON.stringify({items:shoppingCart.map(x=>({product_id:x.product_id,quantity:x.quantity}))})});message.textContent=result.message+" Order ID(s): "+result.orders.map(x=>x.order_id).join(", ");shoppingCart=[];renderCart();await load();await loadCatalog();}
+ catch(e){message.textContent=e.message;await loadCatalog()}
+ finally{button.disabled=false}
+});
+function renderChat(rows){
+ const log=document.getElementById("chatLog");log.innerHTML="";
+ if(!rows.length){log.textContent="Muraho! Andika ubutumwa bwawe hano, WamuTailor izagusubiza.";return}
+ rows.forEach(item=>{const bubble=document.createElement("div");bubble.className="chat-bubble "+(item.sender_role==="client"?"client":"");bubble.textContent=item.message;const meta=document.createElement("div");meta.className="chat-meta";meta.textContent=(item.sender_role==="client"?"You":"WamuTailor Admin")+" · "+(item.created_at||"");bubble.appendChild(meta);log.appendChild(bubble)});
+ log.scrollTop=log.scrollHeight;
+}
+async function loadChat(){try{renderChat(await call("/api/client/chat"))}catch(e){document.getElementById("chatLog").textContent=e.message}}
+document.getElementById("chatForm").addEventListener("submit",async event=>{
+ event.preventDefault();const input=document.getElementById("chatInput");const message=input.value.trim();if(!message)return;
+ const button=event.currentTarget.querySelector("button");button.disabled=true;
+ try{await call("/api/client/chat",{method:"POST",body:JSON.stringify({message})});input.value="";await loadChat()}
+ catch(e){document.getElementById("chatMessage").textContent=e.message}
+ finally{button.disabled=false}
+});
+async function load(){try{const d=await call("/api/client/me");document.getElementById("login").style.display="none";document.getElementById("data").style.display="block";document.getElementById("welcome").textContent="Hello, "+d.customer.name;fill("ordersList",d.orders,"No orders yet.");fill("measurementsList",d.measurements,"No measurements saved yet.");fill("payments",d.payments,"No payments recorded yet.");await loadCatalog();renderCart();await loadChat();if(window.clientChatTimer)clearInterval(window.clientChatTimer);window.clientChatTimer=setInterval(loadChat,15000)}catch(e){token="";sessionStorage.removeItem("wt_client_token");document.getElementById("login").style.display="block";document.getElementById("data").style.display="none";msg(e.message)}}
 async function changePin(){const oldPin=document.getElementById("oldPin").value,newPin=document.getElementById("newPin").value;try{const d=await call("/api/client/change-pin",{method:"POST",body:JSON.stringify({current_pin:oldPin,new_pin:newPin})});document.getElementById("pinMsg").textContent=d.message;signOut()}catch(e){document.getElementById("pinMsg").textContent=e.message}}
 function signOut(){token="";sessionStorage.removeItem("wt_client_token");location.reload()}if(token)load();
 </script></body></html>
