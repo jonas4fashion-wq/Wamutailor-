@@ -6,12 +6,13 @@ import base64
 import json
 import time
 from pathlib import Path
+from io import BytesIO
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy import Column, Integer, MetaData, Table, Text, create_engine, select, text
+from sqlalchemy import Column, Integer, MetaData, Table, Text, LargeBinary, create_engine, select, text
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DASHBOARD_FILE = BASE_DIR / "static" / "index.html"
@@ -42,6 +43,7 @@ for table_name, spec in TABLES.items():
         *[Column(field, Text, nullable=True) for field in spec["fields"]],
         Column("created_at", Text, server_default=text("CURRENT_TIMESTAMP")),
         *([Column("portal_password_hash", Text, nullable=True)] if table_name == "customers" else []),
+        *([Column("photo_data", LargeBinary, nullable=True), Column("photo_content_type", Text, nullable=True)] if table_name == "products" else []),
     )
 
 app = FastAPI(title="WamuTailor Fashion Management", description="WamuTailor internal management system", version="0.3.0")
@@ -57,6 +59,15 @@ def startup():
             cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'customers'"))]
         if "portal_password_hash" not in cols:
             con.execute(text("ALTER TABLE customers ADD COLUMN portal_password_hash TEXT"))
+        if engine.dialect.name == "sqlite":
+            product_cols = [row[1] for row in con.execute(text("PRAGMA table_info(products)"))]
+        else:
+            product_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'products'"))]
+        if "photo_data" not in product_cols:
+            con.execute(text("ALTER TABLE products ADD COLUMN photo_data BYTEA" if engine.dialect.name != "sqlite" else "ALTER TABLE products ADD COLUMN photo_data BLOB"))
+        if "photo_content_type" not in product_cols:
+            con.execute(text("ALTER TABLE products ADD COLUMN photo_content_type TEXT"))
+
 
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)):
@@ -268,3 +279,32 @@ def customer_profile(customer_id: int, _: str = Depends(require_admin)):
         "measurements": [dict(x) for x in measurements],
         "payments": [dict(x) for x in payments],
     }
+
+
+@app.post("/api/admin/products/{product_id}/photo")
+async def upload_product_photo(product_id: int, photo: UploadFile = File(...), _: str = Depends(require_admin)):
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    if photo.content_type not in allowed:
+        raise HTTPException(415, "Only JPG, PNG or WEBP images are allowed.")
+    data = await photo.read(4 * 1024 * 1024 + 1)
+    if len(data) > 4 * 1024 * 1024:
+        raise HTTPException(413, "Photo must be 4 MB or smaller.")
+    if not data.startswith((b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n", b"RIFF")):
+        raise HTTPException(415, "The uploaded file is not a valid supported image.")
+    table = TABLE_OBJECTS["products"]
+    with engine.begin() as con:
+        result = con.execute(table.update().where(table.c.id == product_id).values(photo_data=data, photo_content_type=photo.content_type))
+        if result.rowcount == 0:
+            raise HTTPException(404, "Product not found")
+    return {"uploaded": True, "product_id": product_id, "photo_url": f"/api/products/{product_id}/photo"}
+
+
+@app.get("/api/products/{product_id}/photo")
+def get_product_photo(product_id: int):
+    from fastapi.responses import Response
+    table = TABLE_OBJECTS["products"]
+    with engine.connect() as con:
+        row = con.execute(select(table.c.photo_data, table.c.photo_content_type).where(table.c.id == product_id)).first()
+    if not row or not row.photo_data:
+        raise HTTPException(404, "Product photo not found")
+    return Response(content=row.photo_data, media_type=row.photo_content_type, headers={"Cache-Control": "public, max-age=3600"})
