@@ -315,7 +315,7 @@ def client_catalog():
     table = TABLE_OBJECTS["products"]
     with engine.connect() as con:
         rows = con.execute(
-            select(*[column for column in table.c if column.name not in ("photo_data", "photo_content_type", "created_at", "id")])
+            select(*[column for column in table.c if column.name not in ("photo_data", "photo_content_type", "created_at")])
         ).mappings().all()
     catalog = []
     for row in rows:
