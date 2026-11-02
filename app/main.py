@@ -34,9 +34,12 @@ TABLES = {
     "payments": {"fields": ["order_id", "customer_name", "amount", "method", "payment_date", "reference", "notes"], "required": ["order_id", "amount"]},
     "inventory": {"fields": ["item_name", "unit", "quantity", "unit_cost", "minimum_stock", "notes"], "required": ["item_name", "unit"]},
     "products": {"fields": ["name", "sku", "category", "description", "price", "currency", "stock_quantity", "active"], "required": ["name", "price"]},
-    "staff": {"fields": ["name", "phone", "role", "skills", "status", "notes"], "required": ["name", "role"]},
+    "staff": {"fields": ["name", "phone", "email", "role", "skills", "employment_type", "hire_date", "base_salary", "emergency_contact", "status", "notes"], "required": ["name", "role"]},
     "tasks": {"fields": ["task_name", "staff_name", "order_id", "customer_name", "start_date", "due_date", "priority", "status", "notes"], "required": ["task_name", "staff_name"]},
     "expenses": {"fields": ["category", "description", "amount", "expense_date", "payment_method", "reference", "notes"], "required": ["category", "description", "amount"]},
+    "attendance": {"fields": ["staff_name", "attendance_date", "check_in", "check_out", "status", "notes"], "required": ["staff_name", "attendance_date", "status"]},
+    "leave_requests": {"fields": ["staff_name", "leave_type", "start_date", "end_date", "days", "status", "reason", "decision_notes"], "required": ["staff_name", "leave_type", "start_date", "end_date"]},
+    "payroll": {"fields": ["staff_name", "pay_period", "basic_salary", "allowances", "deductions", "net_pay", "payment_date", "payment_method", "reference", "status", "notes"], "required": ["staff_name", "pay_period", "basic_salary"]},
 }
 TABLE_OBJECTS = {}
 for table_name, spec in TABLES.items():
@@ -62,6 +65,13 @@ def startup():
             cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'customers'"))]
         if "portal_password_hash" not in cols:
             con.execute(text("ALTER TABLE customers ADD COLUMN portal_password_hash TEXT"))
+        if engine.dialect.name == "sqlite":
+            staff_cols = [row[1] for row in con.execute(text("PRAGMA table_info(staff)"))]
+        else:
+            staff_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'staff'"))]
+        for staff_col in ("email", "employment_type", "hire_date", "base_salary", "emergency_contact"):
+            if staff_col not in staff_cols:
+                con.execute(text(f"ALTER TABLE staff ADD COLUMN {staff_col} TEXT"))
         if engine.dialect.name == "sqlite":
             product_cols = [row[1] for row in con.execute(text("PRAGMA table_info(products)"))]
         else:
@@ -238,6 +248,19 @@ def create_record(module: str, payload: dict[str, Any], _: str = Depends(require
     data = {field: str(payload.get(field, "")).strip() for field in spec["fields"] if field in payload}
     if module == "orders":
         data.update(calculate_order_costs({**payload, **data}))
+    if module == "payroll":
+        def payroll_amount(key):
+            try:
+                value = float(str(payload.get(key, "0") or "0").replace(",", "").strip())
+            except (TypeError, ValueError):
+                raise HTTPException(422, f"Enter a valid {key.replace('_', ' ')} amount.")
+            if value < 0:
+                raise HTTPException(422, "Payroll amounts cannot be negative.")
+            return value
+        data["basic_salary"] = str(payroll_amount("basic_salary"))
+        data["allowances"] = str(payroll_amount("allowances"))
+        data["deductions"] = str(payroll_amount("deductions"))
+        data["net_pay"] = str(max(0, payroll_amount("basic_salary") + payroll_amount("allowances") - payroll_amount("deductions")))
     if module == "payments":
         try:
             amount = float(str(data.get("amount", "0")).replace(",", "").strip())
@@ -263,6 +286,24 @@ def update_record(module: str, record_id: int, payload: dict[str, Any], _: str =
     if module not in TABLES:
         raise HTTPException(404, "Unknown module")
     data = {field: str(payload[field]).strip() for field in TABLES[module]["fields"] if field in payload}
+    if module == "payroll":
+        with engine.connect() as con:
+            existing_payroll = con.execute(select(TABLE_OBJECTS["payroll"]).where(TABLE_OBJECTS["payroll"].c.id == record_id)).mappings().first()
+        if not existing_payroll:
+            raise HTTPException(404, "Record not found")
+        merged = {**dict(existing_payroll), **payload}
+        def payroll_amount(key):
+            try:
+                value = float(str(merged.get(key, "0") or "0").replace(",", "").strip())
+            except (TypeError, ValueError):
+                raise HTTPException(422, f"Enter a valid {key.replace('_', ' ')} amount.")
+            if value < 0:
+                raise HTTPException(422, "Payroll amounts cannot be negative.")
+            return value
+        data["basic_salary"] = str(payroll_amount("basic_salary"))
+        data["allowances"] = str(payroll_amount("allowances"))
+        data["deductions"] = str(payroll_amount("deductions"))
+        data["net_pay"] = str(max(0, payroll_amount("basic_salary") + payroll_amount("allowances") - payroll_amount("deductions")))
     if module == "orders":
         with engine.connect() as con:
             existing = con.execute(select(TABLE_OBJECTS["orders"]).where(TABLE_OBJECTS["orders"].c.id == record_id)).mappings().first()
