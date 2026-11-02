@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WamuTailor Client Portal</title>
+<style>
+:root{color-scheme:dark;--bg:#101010;--panel:#1b1b1b;--line:#39342a;--gold:#d8b45e;--muted:#aaa49a;--text:#f5f1e8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,Arial}header{padding:22px 5%;border-bottom:1px solid var(--line)}.brand{color:var(--gold);font-weight:800;letter-spacing:.18em}main{max-width:1000px;margin:35px auto;padding:0 18px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:15px 0}input{display:block;width:100%;max-width:400px;padding:12px;margin:10px 0;background:#111;color:white;border:1px solid var(--line);border-radius:8px}button{padding:11px 18px;border:0;border-radius:8px;background:var(--gold);font-weight:700;cursor:pointer}h1,h2{margin-top:5px}h2{color:var(--gold)}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}.item{border:1px solid var(--line);border-radius:10px;padding:13px;margin:8px 0}#data{display:none}#msg{color:var(--gold);margin:12px 0}
+</style></head><body><header><div class="brand">WAMUTAILOR</div><div class="muted">SECURE CLIENT PORTAL</div></header>
+<main><section class="panel" id="login"><h1>Welcome back</h1><p class="muted">Sign in to view your personal orders, measurements and payments.</p>
+<input id="phone" placeholder="Phone number" autocomplete="username"><input id="password" type="password" placeholder="Password" autocomplete="current-password"><button onclick="signIn()">Sign in</button><div id="msg"></div></section>
+<section id="data"><h1 id="welcome"></h1><p class="muted">Your personal WamuTailor account</p><div class="grid">
+<section class="panel"><h2>My Orders</h2><div id="orders"></div></section><section class="panel"><h2>My Measurements</h2><div id="measurements"></div></section><section class="panel"><h2>My Payments</h2><div id="payments"></div></section></div><button onclick="signOut()">Sign out</button></section></main>
+<script>
+let token=sessionStorage.getItem("wt_client_token")||"";
+function msg(t){document.getElementById("msg").textContent=t}
+async function call(url,opts={}){const r=await fetch(url,{...opts,headers:{"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{}),...(opts.headers||{})}});const d=await r.json();if(!r.ok)throw Error(d.detail||"Request failed");return d}
+async function signIn(){try{const d=await call("/api/client/login",{method:"POST",body:JSON.stringify({phone:document.getElementById("phone").value,password:document.getElementById("password").value})});token=d.access_token;sessionStorage.setItem("wt_client_token",token);await load()}catch(e){msg(e.message)}}
+function card(x){const el=document.createElement("div");el.className="item";Object.entries(x).filter(([k,v])=>v!==null&&v!==""&&!["id","created_at","customer_phone","customer_name"].includes(k)).forEach(([k,v])=>{const p=document.createElement("div");p.textContent=k.replaceAll("_"," ")+": "+v;el.appendChild(p)});return el}
+function fill(id,rows,empty){const el=document.getElementById(id);el.innerHTML="";if(!rows.length){el.textContent=empty;return}rows.forEach(x=>el.appendChild(card(x)))}
+async function load(){try{const d=await call("/api/client/me");document.getElementById("login").style.display="none";document.getElementById("data").style.display="block";document.getElementById("welcome").textContent="Hello, "+d.customer.name;fill("orders",d.orders,"No orders yet.");fill("measurements",d.measurements,"No measurements saved yet.");fill("payments",d.payments,"No payments recorded yet.")}catch(e){token="";sessionStorage.removeItem("wt_client_token");document.getElementById("login").style.display="block";document.getElementById("data").style.display="none";msg(e.message)}}
+function signOut(){token="";sessionStorage.removeItem("wt_client_token");location.reload()}if(token)load();
+</script></body></html>
