@@ -40,6 +40,7 @@ TABLES = {
     "attendance": {"fields": ["staff_name", "attendance_date", "check_in", "check_out", "status", "notes"], "required": ["staff_name", "attendance_date", "status"]},
     "leave_requests": {"fields": ["staff_name", "leave_type", "start_date", "end_date", "days", "status", "reason", "decision_notes"], "required": ["staff_name", "leave_type", "start_date", "end_date"]},
     "payroll": {"fields": ["staff_name", "pay_period", "basic_salary", "allowances", "deductions", "net_pay", "payment_date", "payment_method", "reference", "status", "notes"], "required": ["staff_name", "pay_period", "basic_salary"]},
+    "chat_messages": {"fields": ["customer_phone", "sender_role", "sender_name", "message", "read_by_admin", "read_by_client"], "required": ["customer_phone", "sender_role", "message"]},
 }
 TABLE_OBJECTS = {}
 for table_name, spec in TABLES.items():
@@ -722,6 +723,102 @@ def get_product_photo(product_id: int):
     if not row or not row.photo_data:
         raise HTTPException(404, "Product photo not found")
     return Response(content=row.photo_data, media_type=row.photo_content_type, headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/api/client/chat")
+def client_chat_history(customer: dict = Depends(require_client)):
+    table = TABLE_OBJECTS["chat_messages"]
+    with engine.connect() as con:
+        rows = con.execute(select(table).where(table.c.customer_phone == customer["phone"]).order_by(table.c.id.asc()).limit(300)).mappings().all()
+    return [dict(row) for row in rows]
+
+
+@app.post("/api/client/chat", status_code=201)
+def client_send_chat(payload: dict[str, Any], customer: dict = Depends(require_client)):
+    message = str(payload.get("message", "")).strip()
+    if not message or len(message) > 2000:
+        raise HTTPException(422, "Message must contain 1–2000 characters.")
+    table = TABLE_OBJECTS["chat_messages"]
+    data = {"customer_phone": customer["phone"], "sender_role": "client", "sender_name": customer["name"], "message": message, "read_by_admin": "no", "read_by_client": "yes"}
+    with engine.begin() as con:
+        result = con.execute(table.insert().values(**data))
+        row = con.execute(select(table).where(table.c.id == result.inserted_primary_key[0])).mappings().one()
+    return dict(row)
+
+
+@app.get("/api/admin/chat/inbox")
+def admin_chat_inbox(_: str = Depends(require_admin)):
+    table = TABLE_OBJECTS["chat_messages"]
+    with engine.connect() as con:
+        rows = con.execute(select(table).order_by(table.c.id.desc()).limit(500)).mappings().all()
+    latest = {}
+    for row in rows:
+        phone = str(row.get("customer_phone") or "")
+        if phone and phone not in latest:
+            latest[phone] = dict(row)
+    return list(latest.values())
+
+
+@app.get("/api/admin/chat/{customer_phone}")
+def admin_chat_history(customer_phone: str, _: str = Depends(require_admin)):
+    table = TABLE_OBJECTS["chat_messages"]
+    with engine.begin() as con:
+        con.execute(table.update().where(table.c.customer_phone == customer_phone, table.c.sender_role == "client").values(read_by_admin="yes"))
+        rows = con.execute(select(table).where(table.c.customer_phone == customer_phone).order_by(table.c.id.asc()).limit(300)).mappings().all()
+    return [dict(row) for row in rows]
+
+
+@app.post("/api/admin/chat/{customer_phone}", status_code=201)
+def admin_send_chat(customer_phone: str, payload: dict[str, Any], admin: str = Depends(require_admin)):
+    message = str(payload.get("message", "")).strip()
+    if not message or len(message) > 2000:
+        raise HTTPException(422, "Message must contain 1–2000 characters.")
+    customers = TABLE_OBJECTS["customers"]
+    messages = TABLE_OBJECTS["chat_messages"]
+    with engine.begin() as con:
+        customer = con.execute(select(customers).where(customers.c.phone == customer_phone)).mappings().first()
+        if not customer:
+            raise HTTPException(404, "Customer not found.")
+        result = con.execute(messages.insert().values(customer_phone=customer_phone, sender_role="admin", sender_name=admin, message=message, read_by_admin="yes", read_by_client="no"))
+        row = con.execute(select(messages).where(messages.c.id == result.inserted_primary_key[0])).mappings().one()
+    return dict(row)
+
+
+@app.post("/api/client/cart/checkout", status_code=201)
+def client_cart_checkout(payload: dict[str, Any], customer: dict = Depends(require_client)):
+    items = payload.get("items")
+    if not isinstance(items, list) or not items or len(items) > 30:
+        raise HTTPException(422, "Your cart is empty or contains too many items.")
+    products = TABLE_OBJECTS["products"]
+    orders = TABLE_OBJECTS["orders"]
+    created = []
+    with engine.begin() as con:
+        for entry in items:
+            try:
+                product_id = int(entry.get("product_id"))
+                quantity = int(entry.get("quantity", 1))
+            except (TypeError, ValueError, AttributeError):
+                raise HTTPException(422, "Invalid product or quantity in cart.")
+            if quantity < 1 or quantity > 50:
+                raise HTTPException(422, "Quantity must be between 1 and 50.")
+            product = con.execute(select(products).where(products.c.id == product_id)).mappings().first()
+            if not product or str(product.get("active") or "yes").lower() == "no":
+                raise HTTPException(404, "A product in your cart is no longer available.")
+            try:
+                stock = int(float(str(product.get("stock_quantity") or 0).replace(",", "")))
+                price = float(str(product.get("price") or 0).replace(",", ""))
+            except (TypeError, ValueError):
+                raise HTTPException(422, "A product has invalid stock or price information.")
+            if stock < quantity:
+                raise HTTPException(409, f"Not enough stock for {product.get('name')}. Available: {stock}.")
+            if price <= 0:
+                raise HTTPException(422, f"Please contact WamuTailor to confirm the price of {product.get('name')}.")
+            total = price * quantity
+            result = con.execute(orders.insert().values(customer_name=customer["name"], customer_phone=customer["phone"], product=product.get("name"), quantity=str(quantity), unit_price=str(price), total=str(total), deposit="0", balance=str(total), production_cost="0", profit=str(total), status="Received", notes="Client portal cart order"))
+            order_id = result.inserted_primary_key[0]
+            con.execute(products.update().where(products.c.id == product_id).values(stock_quantity=str(stock - quantity)))
+            created.append({"order_id": order_id, "product": product.get("name"), "quantity": quantity, "total": total})
+    return {"created": True, "orders": created, "message": "Your order has been placed. WamuTailor will contact you to confirm delivery and payment."}
 
 
 @app.post("/api/client/change-pin")
