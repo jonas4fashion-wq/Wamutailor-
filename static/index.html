@@ -41,7 +41,22 @@ const nav=document.getElementById("nav"), form=document.getElementById("recordFo
 function message(t){document.getElementById("message").textContent=t}
 function renderNav(){nav.innerHTML="";Object.entries(configs).forEach(([key,c])=>{const b=document.createElement("button");b.textContent=c.title;b.className=key===current?"active":"";b.onclick=()=>{current=key;renderNav();renderForm();loadRecords()};nav.appendChild(b)})}
 function renderForm(){const c=configs[current];document.getElementById("moduleTitle").textContent=c.title;form.innerHTML="";c.fields.forEach(([key,label])=>{const wrap=document.createElement("label");wrap.textContent=label;const input=document.createElement("input");input.name=key;input.autocomplete="off";wrap.appendChild(input);form.appendChild(wrap)})}
-async function api(path,options={}){const r=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.detail||("Request failed: "+r.status))}return r.status===204?null:r.json()}
+let authHeader=sessionStorage.getItem("wt_admin_auth")||"";
+async function api(path,options={},retry=true){
+ if(!authHeader){
+   const user=prompt("Admin username (default: admin):","admin");
+   if(user===null)throw new Error("Login cancelled");
+   const pass=prompt("Admin password:","");
+   if(pass===null)throw new Error("Login cancelled");
+   authHeader="Basic "+btoa(user+":"+pass);
+ }
+ const r=await fetch(path,{...options,headers:{"Content-Type":"application/json","Authorization":authHeader,...(options.headers||{})}});
+ if(r.status===401&&retry){authHeader="";sessionStorage.removeItem("wt_admin_auth");return api(path,options,false)}
+ if(r.status===401){authHeader="";sessionStorage.removeItem("wt_admin_auth")}
+ if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.detail||("Request failed: "+r.status))}
+ sessionStorage.setItem("wt_admin_auth",authHeader);
+ return r.status===204?null:r.json()
+}
 async function loadRecords(){try{const rows=await api("/api/"+current);const cols=configs[current].fields.map(x=>x[0]);document.getElementById("thead").innerHTML="<tr><th>ID</th>"+cols.map(k=>"<th>"+k.replaceAll("_"," ")+"</th>").join("")+"<th>Action</th></tr>";const body=document.getElementById("tbody");body.innerHTML="";rows.forEach(row=>{const tr=document.createElement("tr");tr.innerHTML="<td>"+row.id+"</td>"+cols.map(k=>"<td></td>").join("")+"<td><button class='action' data-id='"+row.id+"'>Delete</button></td>";cols.forEach((k,i)=>tr.children[i+1].textContent=row[k]??"");tr.querySelector("button").onclick=()=>deleteRecord(row.id);body.appendChild(tr)});message(rows.length+" records loaded")}catch(e){message(e.message)}}
 async function deleteRecord(id){if(!confirm("Delete record #"+id+"?"))return;try{await api("/api/"+current+"/"+id,{method:"DELETE"});await loadRecords()}catch(e){message(e.message)}}
 document.getElementById("saveBtn").onclick=async()=>{const payload=Object.fromEntries(new FormData(form).entries());try{await api("/api/"+current,{method:"POST",body:JSON.stringify(payload)});form.reset();await loadRecords();message("Record saved")}catch(e){message(e.message)}};
