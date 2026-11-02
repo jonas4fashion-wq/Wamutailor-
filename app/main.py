@@ -32,6 +32,7 @@ TABLES = {
     "orders": {"fields": ["customer_name", "customer_phone", "product", "quantity", "unit_price", "total", "deposit", "balance", "delivery_date", "status", "notes"], "required": ["customer_name", "customer_phone", "product"]},
     "payments": {"fields": ["order_id", "customer_name", "amount", "method", "payment_date", "reference", "notes"], "required": ["order_id", "amount"]},
     "inventory": {"fields": ["item_name", "unit", "quantity", "unit_cost", "minimum_stock", "notes"], "required": ["item_name", "unit"]},
+    "products": {"fields": ["name", "sku", "category", "description", "price", "currency", "active"], "required": ["name", "price"]},
 }
 TABLE_OBJECTS = {}
 for table_name, spec in TABLES.items():
