@@ -26,6 +26,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <div class="nav" id="nav"></div>\n<section class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Business Overview</h2><button class="action" id="refreshOverview" type="button">Refresh overview</button></div><div id="overview" class="muted" style="margin-top:12px">Load your business snapshot.</div></section>
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
 <section class="panel"><h2>Production Cost & Profit Report</h2><button class="action" id="loadCostReport" type="button">Calculate report</button><div id="costReport" class="muted" style="margin-top:12px">Click to calculate totals from saved orders.</div></section>
+<section class="panel"><h2>Inventory Stock Alerts</h2><p class="muted">Find materials that have reached or fallen below their minimum stock level.</p><button class="action" id="loadStockAlerts" type="button">Check stock levels</button><div id="stockAlerts" class="muted" style="margin-top:12px">Click to check inventory.</div></section>
 <section class="panel"><h2>Business Expense Report</h2><p class="muted">Track rent, utilities, transport, supplies and other operating expenses.</p><button class="action" id="loadExpenseReport" type="button">Calculate expense report</button><div id="expenseReport" class="muted" style="margin-top:12px">Click to calculate recorded business expenses.</div></section>
 <section class="panel"><h2>Order Production Workflow</h2><p class="muted">Track each customer order through cutting, sewing, finishing and delivery. Assign a staff member and deadline to every stage.</p><div id="workflowForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px"><label>Order<select id="wfOrder"><option value="">Choose an order</option></select></label><label>Production stage<select id="wfStage"><option>Measurements confirmation</option><option>Pattern making</option><option>Fabric cutting</option><option>Sewing</option><option>Fitting</option><option>Finishing</option><option>Quality check</option><option>Ready for collection</option><option>Delivered</option></select></label><label>Assigned staff<select id="wfStaff"><option value="">Choose staff</option></select></label><label>Start date<input id="wfStart" type="date"></label><label>Deadline<input id="wfDue" type="date"></label><label>Status<select id="wfStatus"><option>To Do</option><option>In Progress</option><option>Done</option><option>Blocked</option></select></label><label style="grid-column:1/-1">Instructions / notes<input id="wfNotes" placeholder="Fabric, fitting notes, alterations…"></label></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary" id="wfSave" type="button">Add production stage</button><button class="action" id="wfRefresh" type="button">Refresh workflow</button><button class="action" id="wfCancel" type="button" style="display:none">Cancel edit</button></div><div id="workflowList" style="margin-top:14px" class="muted">Choose an order to see its production stages.</div></section>
 <section class="panel"><h2>Employee Performance Report</h2><p class="muted">Review completed work, attendance and recorded payroll payments for each employee.</p><button class="action" id="loadStaffPerformance" type="button">Refresh employee report</button><div id="staffPerformance" class="muted" style="margin-top:12px">Click to load employee performance.</div></section>
@@ -125,6 +126,25 @@ async function loadExpenseReport(){
  }catch(e){message(e.message)}
 }
 document.getElementById("loadExpenseReport").onclick=loadExpenseReport;
+async function loadStockAlerts(){
+ const root=document.getElementById("stockAlerts");root.textContent="Checking inventory…";
+ try{
+  const data=await api("/api/admin/reports/low-stock");
+  root.innerHTML="";
+  const summary=document.createElement("p");summary.textContent="Items needing attention: "+data.alert_count+" · Out of stock: "+data.out_of_stock+" · Low stock: "+data.low_stock;root.appendChild(summary);
+  if(!data.items.length){const ok=document.createElement("p");ok.textContent="All recorded inventory items are above their minimum stock level.";root.appendChild(ok);return}
+  const wrap=document.createElement("div");wrap.className="tablewrap";
+  const table=document.createElement("table");const head=document.createElement("thead");head.innerHTML="<tr><th>Item</th><th>Available</th><th>Minimum</th><th>Unit</th><th>Alert</th></tr>";table.appendChild(head);
+  const body=document.createElement("tbody");
+  data.items.forEach(item=>{
+   const tr=document.createElement("tr");
+   [item.item_name,item.quantity,item.minimum_stock,item.unit,item.alert].forEach(value=>{const td=document.createElement("td");td.textContent=value??"";if(value==="OUT OF STOCK"||value==="LOW STOCK")td.style.color=value==="OUT OF STOCK"?"#ff7777":"var(--gold)";tr.appendChild(td)});
+   body.appendChild(tr);
+  });
+  table.appendChild(body);wrap.appendChild(table);root.appendChild(wrap);
+ }catch(e){root.textContent="Could not check stock: "+e.message}
+}
+document.getElementById("loadStockAlerts").onclick=loadStockAlerts;
 
 let workflowEditId=null;
 async function loadWorkflowOptions(){
