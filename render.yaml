@@ -21,4 +21,3 @@ databases:
     databaseName: wamutailor
     user: wamutailor_admin
     plan: free
-    region: frankfurt
