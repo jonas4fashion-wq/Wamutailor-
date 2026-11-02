@@ -15,7 +15,7 @@ form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1
 label{font-size:12px;color:var(--muted)}input,select,textarea{width:100%;margin-top:5px;padding:11px;border-radius:8px;border:1px solid var(--line);background:#111;color:var(--text)}
 button.primary{background:var(--gold);color:#17130b;border:0;border-radius:8px;padding:11px 18px;font-weight:700;cursor:pointer}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--gold)}.tablewrap{overflow:auto}.muted{color:var(--muted)}#message{margin:12px 0;color:var(--gold)}
-@media(max-width:600px){header{align-items:flex-start;flex-direction:column}.panel{padding:12px}}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-top:14px}.kpi{background:#141414;border:1px solid var(--line);border-radius:10px;padding:14px}.kpi strong{display:block;color:var(--gold);font-size:23px}.kpi span{font-size:12px;color:var(--muted)}.overview-list{margin-top:12px;padding:12px;border-top:1px solid var(--line)}\n@media(max-width:600px){header{align-items:flex-start;flex-direction:column}.panel{padding:12px}}
 </style></head>
 <body>
 <header><div><div class="brand">WAMUTAILOR</div><div class="sub">FASHION HOUSE · KIGALI</div></div><div class="sub">MANAGEMENT SYSTEM · ADMIN · <a href="/" style="color:var(--gold)">BOOK HOME</a></div></header>
@@ -23,7 +23,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <div class="sub">BUSINESS WORKSPACE</div><h1>Management Dashboard</h1>
 <p class="muted">Customers · Measurements · Orders · Payments · Inventory · Staff · Tasks</p>
 <div id="message">Connecting securely…</div>
-<div class="nav" id="nav"></div>
+<div class="nav" id="nav"></div>\n<section class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Business Overview</h2><button class="action" id="refreshOverview" type="button">Refresh overview</button></div><div id="overview" class="muted" style="margin-top:12px">Load your business snapshot.</div></section>
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
 <section class="panel"><h2>Production Cost & Profit Report</h2><button class="action" id="loadCostReport" type="button">Calculate report</button><div id="costReport" class="muted" style="margin-top:12px">Click to calculate totals from saved orders.</div></section>
 <section class="panel"><h2>Business Expense Report</h2><p class="muted">Track rent, utilities, transport, supplies and other operating expenses.</p><button class="action" id="loadExpenseReport" type="button">Calculate expense report</button><div id="expenseReport" class="muted" style="margin-top:12px">Click to calculate recorded business expenses.</div></section>
@@ -67,6 +67,29 @@ async function api(path,options={},retry=true){
  sessionStorage.setItem("wt_admin_auth",authHeader);
  return r.status===204?null:r.json()
 }
+async function loadBusinessOverview(){
+ const root=document.getElementById("overview");root.textContent="Loading business overview…";
+ try{
+  const d=await api("/api/admin/reports/overview");
+  const money=v=>Number(v||0).toLocaleString("en-US",{maximumFractionDigits:0})+" RWF";
+  const cards=[
+   ["Customers",d.customers],["All orders",d.orders_total],["Orders in progress",d.orders_open],
+   ["Delivered orders",d.orders_delivered],["Payments received",money(d.payments_received)],
+   ["Outstanding balance",money(d.balance_due)],["Low-stock items",d.low_stock_count],
+   ["Active staff",d.staff_count],["Active tasks",d.tasks_active],["Overdue tasks",d.tasks_overdue]
+  ];
+  root.innerHTML="";
+  const grid=document.createElement("div");grid.className="kpi-grid";
+  cards.forEach(([label,value])=>{const box=document.createElement("div");box.className="kpi";const strong=document.createElement("strong");strong.textContent=value;const span=document.createElement("span");span.textContent=label;box.append(strong,span);grid.appendChild(box)});
+  root.appendChild(grid);
+  const addList=(title,items,format,empty)=>{const section=document.createElement("div");section.className="overview-list";const heading=document.createElement("strong");heading.style.color="var(--gold)";heading.textContent=title;section.appendChild(heading);if(!items.length){const p=document.createElement("p");p.className="muted";p.textContent=empty;section.appendChild(p)}items.forEach(item=>{const p=document.createElement("p");p.textContent=format(item);section.appendChild(p)});root.appendChild(section)};
+  addList("Inventory requiring attention",d.low_stock_items||[],x=>x.item_name+" · "+x.quantity+" "+x.unit+" left (minimum "+x.minimum_stock+")","No low-stock items.");
+  addList("Overdue staff tasks",d.overdue_tasks||[],x=>x.task_name+" · "+x.staff_name+" · Due "+x.due_date,"No overdue tasks.");
+  const stamp=document.createElement("p");stamp.className="muted";stamp.textContent="Snapshot date: "+d.as_of;root.appendChild(stamp);
+ }catch(e){root.textContent="Could not load overview: "+e.message}
+}
+document.getElementById("refreshOverview").onclick=loadBusinessOverview;
+
 async function loadRecords(){try{const rows=await api("/api/"+current);cachedRows=rows;const cols=configs[current].fields.map(x=>x[0]);document.getElementById("thead").innerHTML="<tr><th>ID</th>"+cols.map(k=>"<th>"+k.replaceAll("_"," ")+"</th>").join("")+"<th>Action</th></tr>";const body=document.getElementById("tbody");body.innerHTML="";rows.forEach(row=>{const tr=document.createElement("tr");tr.innerHTML="<td>"+row.id+"</td>"+cols.map(k=>"<td></td>").join("")+"<td><button class='action' data-id='"+row.id+"'>Delete</button></td>";cols.forEach((k,i)=>tr.children[i+1].textContent=row[k]??"");tr.querySelector("button").onclick=()=>deleteRecord(row.id);const edit=document.createElement("button");edit.className="action";edit.textContent="Edit";edit.onclick=()=>editRecord(row);tr.lastElementChild.appendChild(edit);if(current==="customers"){const profileBtn=document.createElement("button");profileBtn.className="action";profileBtn.textContent="View profile";profileBtn.onclick=()=>showCustomerProfile(row.id);tr.lastElementChild.appendChild(profileBtn);const action=document.createElement("button");action.className="action";action.textContent="Enable portal";action.onclick=async()=>{const password=prompt("Set client password (minimum 10 characters). Share it privately with the client.");if(!password)return;try{await api("/api/admin/customers/"+row.id+"/portal-access",{method:"POST",body:JSON.stringify({password})});message("Client portal enabled for "+row.name)}catch(e){message(e.message)}};tr.lastElementChild.appendChild(action)}body.appendChild(tr)});message(rows.length+" records loaded")}catch(e){message(e.message)}}
 
 
@@ -134,5 +157,5 @@ document.getElementById("saveBtn").onclick=async()=>{const btn=document.getEleme
 
 document.getElementById('recordSearch').addEventListener('input',()=>{const q=document.getElementById('recordSearch').value.toLowerCase();document.querySelectorAll('#tbody tr').forEach(tr=>tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none')});
 document.getElementById('exportBtn').onclick=()=>{const cols=['id',...configs[current].fields.map(x=>x[0])];const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';const csv=[cols.join(','),...cachedRows.map(row=>cols.map(k=>quote(row[k])).join(','))].join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='wamutailor-'+current+'.csv';a.click();URL.revokeObjectURL(url)};
-renderNav();renderForm();loadRecords();
+renderNav();renderForm();loadRecords();loadBusinessOverview();
 </script></body></html>
