@@ -24,6 +24,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <p class="muted">Customers · Measurements · Orders · Payments · Inventory · Staff · Tasks</p>
 <div id="message">Connecting securely…</div>
 <div class="nav" id="nav"></div>\n<section class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Business Overview</h2><button class="action" id="refreshOverview" type="button">Refresh overview</button></div><div id="overview" class="muted" style="margin-top:12px">Load your business snapshot.</div></section>
+<section class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><h2 style="margin:0">Business Analytics</h2><p class="muted">Monthly revenue, production costs, operating expenses and estimated net profit.</p></div><button class="action" id="loadMonthlyAnalysis" type="button">Refresh analysis</button></div><div id="monthlyAnalysis" class="muted" style="margin-top:12px">Click refresh analysis to load monthly performance.</div></section>
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
 <section class="panel"><h2>Production Cost & Profit Report</h2><button class="action" id="loadCostReport" type="button">Calculate report</button><div id="costReport" class="muted" style="margin-top:12px">Click to calculate totals from saved orders.</div></section>
 <section class="panel"><h2>Inventory Stock Alerts</h2><p class="muted">Find materials that have reached or fallen below their minimum stock level.</p><button class="action" id="loadStockAlerts" type="button">Check stock levels</button><div id="stockAlerts" class="muted" style="margin-top:12px">Click to check inventory.</div></section>
@@ -94,6 +95,26 @@ async function loadBusinessOverview(){
  }catch(e){root.textContent="Could not load overview: "+e.message}
 }
 document.getElementById("refreshOverview").onclick=loadBusinessOverview;
+async function loadMonthlyAnalysis(){
+ const root=document.getElementById("monthlyAnalysis");root.textContent="Loading monthly analysis…";
+ try{
+  const data=await api("/api/admin/reports/monthly-analysis");
+  const money=v=>Number(v||0).toLocaleString("en-US",{maximumFractionDigits:0})+" RWF";
+  root.innerHTML="";
+  if(!data.months.length){root.textContent="No dated order, payment or expense records are available yet. Add records with dates and refresh.";return}
+  const latest=data.months[data.months.length-1];
+  const cards=document.createElement("div");cards.className="kpi-grid";
+  [["Latest month",latest.month],["Revenue",money(latest.revenue)],["Production costs",money(latest.production_cost)],["Operating expenses",money(latest.operating_expenses)],["Estimated net profit",money(latest.net_profit_estimate)],["Payments received",money(latest.payments_received)]].forEach(([label,value])=>{const box=document.createElement("div");box.className="kpi";const strong=document.createElement("strong");strong.style.fontSize="18px";strong.textContent=value;const span=document.createElement("span");span.textContent=label;box.append(strong,span);cards.appendChild(box)});
+  root.appendChild(cards);
+  const wrap=document.createElement("div");wrap.className="tablewrap";wrap.style.marginTop="14px";
+  const table=document.createElement("table");const head=document.createElement("thead");head.innerHTML="<tr><th>Month</th><th>Revenue</th><th>Production cost</th><th>Operating expenses</th><th>Estimated net profit</th><th>Payments received</th></tr>";table.appendChild(head);
+  const body=document.createElement("tbody");
+  [...data.months].reverse().forEach(item=>{const tr=document.createElement("tr");[item.month,money(item.revenue),money(item.production_cost),money(item.operating_expenses),money(item.net_profit_estimate),money(item.payments_received)].forEach(value=>{const td=document.createElement("td");td.textContent=value;tr.appendChild(td)});body.appendChild(tr)});
+  table.appendChild(body);wrap.appendChild(table);root.appendChild(wrap);
+  const note=document.createElement("p");note.className="muted";note.textContent=data.note||"";root.appendChild(note);
+ }catch(e){root.textContent="Could not load business analysis: "+e.message}
+}
+document.getElementById("loadMonthlyAnalysis").onclick=loadMonthlyAnalysis;
 
 async function loadRecords(){try{const rows=await api("/api/"+current);cachedRows=rows;const cols=configs[current].fields.map(x=>x[0]);document.getElementById("thead").innerHTML="<tr><th>ID</th>"+cols.map(k=>"<th>"+k.replaceAll("_"," ")+"</th>").join("")+"<th>Action</th></tr>";const body=document.getElementById("tbody");body.innerHTML="";rows.forEach(row=>{const tr=document.createElement("tr");tr.innerHTML="<td>"+row.id+"</td>"+cols.map(k=>"<td></td>").join("")+"<td><button class='action' data-id='"+row.id+"'>Delete</button></td>";cols.forEach((k,i)=>tr.children[i+1].textContent=row[k]??"");tr.querySelector("button").onclick=()=>deleteRecord(row.id);const edit=document.createElement("button");edit.className="action";edit.textContent="Edit";edit.onclick=()=>editRecord(row);tr.lastElementChild.appendChild(edit);if(current==="customers"){const profileBtn=document.createElement("button");profileBtn.className="action";profileBtn.textContent="View profile";profileBtn.onclick=()=>showCustomerProfile(row.id);tr.lastElementChild.appendChild(profileBtn);const action=document.createElement("button");action.className="action";action.textContent="Enable portal";action.onclick=async()=>{const password=prompt("Set client password (minimum 10 characters). Share it privately with the client.");if(!password)return;try{await api("/api/admin/customers/"+row.id+"/portal-access",{method:"POST",body:JSON.stringify({password})});message("Client portal enabled for "+row.name)}catch(e){message(e.message)}};tr.lastElementChild.appendChild(action)}body.appendChild(tr)});message(rows.length+" records loaded")}catch(e){message(e.message)}}
 
