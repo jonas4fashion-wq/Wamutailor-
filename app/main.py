@@ -385,6 +385,27 @@ def production_cost_report(_: str = Depends(require_admin)):
     totals["net_profit"] = totals["profit"] - operating_expenses
     return totals
 
+@app.get("/api/admin/reports/low-stock")
+def low_stock_report(_: str = Depends(require_admin)):
+    table = TABLE_OBJECTS["inventory"]
+    with engine.connect() as con:
+        rows = con.execute(select(table).order_by(table.c.item_name.asc())).mappings().all()
+    alerts = []
+    for row in rows:
+        try:
+            quantity = float(str(row.get("quantity") or 0).replace(",", "").strip())
+            minimum = float(str(row.get("minimum_stock") or 0).replace(",", "").strip())
+        except (TypeError, ValueError):
+            continue
+        if quantity <= minimum:
+            item = dict(row)
+            item["quantity_numeric"] = quantity
+            item["minimum_stock_numeric"] = minimum
+            item["alert"] = "OUT OF STOCK" if quantity <= 0 else "LOW STOCK"
+            alerts.append(item)
+    return {"alert_count": len(alerts), "out_of_stock": sum(1 for x in alerts if x["quantity_numeric"] <= 0), "low_stock": sum(1 for x in alerts if x["quantity_numeric"] > 0), "items": alerts}
+
+
 @app.get("/api/admin/reports/staff-performance")
 def staff_performance_report(_: str = Depends(require_admin)):
     staff_table = TABLE_OBJECTS["staff"]
