@@ -1,51 +1,34 @@
 # WamuTailor Fashion Management
 
-Initial deployment foundation for the WamuTailor Fashion management application.
+Deployment foundation for the WamuTailor Fashion management system.
 
-## Current scope
+## Modules
+- Customers
+- Measurements
+- Orders
+- Payments
+- Inventory
 
-- FastAPI application
-- Responsive black-and-gold dashboard
-- `/health` service health endpoint
-- `/api/status` application status endpoint
-- Render Blueprint configuration
+## Stack
+- FastAPI
+- SQLAlchemy
+- Render Postgres (Blueprint managed)
+- HTTP Basic admin authentication (temporary initial access layer)
 
-## Run locally
-
-Python 3.11 or newer is recommended.
-
+## Local run
 ```bash
 python -m venv .venv
-```
-
-Windows:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-macOS/Linux:
-
-```bash
-source .venv/bin/activate
-```
-
-Install and run:
-
-```bash
+# Windows: .venv\\Scripts\\activate
+# macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Open http://127.0.0.1:8000 and http://127.0.0.1:8000/docs.
+## Render deployment
+The Blueprint provisions a web service and a Free Postgres database, wires DATABASE_URL, sets ADMIN_USERNAME=admin, and generates ADMIN_PASSWORD. After Blueprint sync, open the service's Environment page and reveal/copy the generated ADMIN_PASSWORD for your own secure records. Never share it in chat.
 
-## Deploy on Render
+## IMPORTANT: Free database expiry
+Render Free Postgres databases expire after 30 days. This setup is for testing only. Upgrade to a paid database before relying on it for business records and set up verified backups. Free web services can spin down when idle. See Render's current documentation: https://render.com/docs/free
 
-1. Sign in to Render.
-2. Create a new Blueprint and connect this GitHub repository.
-3. Render reads `render.yaml` and creates the web service.
-4. Confirm the service is healthy at `/health`.
-
-## Production readiness
-
-This repository is only the deployment foundation. Do not enter real customer data yet. Before business use, implement and test PostgreSQL persistence, staff authentication, role-based access, secure secret management, backups, audit logs, input validation and payment-record safeguards. Existing local JSON files are deliberately excluded from Git by `.gitignore`; do not commit customer records, measurements, credentials or payment data.
+## Security
+This is an early testing release, not yet approved for production customer information. Before use with real client measurements, contacts, orders or payment records, complete security review, HTTPS verification, staff roles, audit logs, validation, backup/restore testing and data retention policy. Do not commit secrets or customer records.
