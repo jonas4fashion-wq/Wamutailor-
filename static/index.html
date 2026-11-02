@@ -15,7 +15,17 @@ form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1
 label{font-size:12px;color:var(--muted)}input,select,textarea{width:100%;margin-top:5px;padding:11px;border-radius:8px;border:1px solid var(--line);background:#111;color:var(--text)}
 button.primary{background:var(--gold);color:#17130b;border:0;border-radius:8px;padding:11px 18px;font-weight:700;cursor:pointer}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--gold)}.tablewrap{overflow:auto}.muted{color:var(--muted)}#message{margin:12px 0;color:var(--gold)}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-top:14px}.kpi{background:#141414;border:1px solid var(--line);border-radius:10px;padding:14px}.kpi strong{display:block;color:var(--gold);font-size:23px}.kpi span{font-size:12px;color:var(--muted)}.overview-list{margin-top:12px;padding:12px;border-top:1px solid var(--line)}\n@media(max-width:600px){header{align-items:flex-start;flex-direction:column}.panel{padding:12px}}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-top:14px}.kpi{background:#141414;border:1px solid var(--line);border-radius:10px;padding:14px}.kpi strong{display:block;color:var(--gold);font-size:23px}.kpi span{font-size:12px;color:var(--muted)}.overview-list{margin-top:12px;padding:12px;border-top:1px solid var(--line)}
+.hero-banner{position:relative;min-height:210px;display:flex;align-items:flex-end;overflow:hidden;border:1px solid #80652d;border-radius:16px;margin:18px 0;background:linear-gradient(90deg,rgba(0,0,0,.88),rgba(0,0,0,.28)),linear-gradient(135deg,#211a0d,#090909);background-position:center;background-size:cover}
+.hero-banner:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.76),rgba(0,0,0,.08));pointer-events:none}
+.hero-copy{position:relative;z-index:1;padding:26px;max-width:620px;text-shadow:0 2px 8px #000}
+.hero-copy .eyebrow{color:var(--gold);letter-spacing:.2em;font-size:11px;font-weight:700}
+.hero-copy h2{font-size:clamp(25px,4vw,38px);margin:7px 0;color:#fff}
+.hero-copy p{color:#eee;margin:0}
+.quick-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.quick-links a{color:var(--gold);text-decoration:none;border:1px solid #80652d;background:rgba(0,0,0,.58);padding:8px 12px;border-radius:8px;font-size:13px}
+@media(max-width:600px){.hero-banner{min-height:180px}.hero-copy{padding:18px}}
+\n@media(max-width:600px){header{align-items:flex-start;flex-direction:column}.panel{padding:12px}}
 </style></head>
 <body>
 <header><div><div class="brand">WAMUTAILOR</div><div class="sub">FASHION HOUSE · KIGALI</div></div><div class="sub">MANAGEMENT SYSTEM · ADMIN · <a href="/" style="color:var(--gold)">BOOK HOME</a></div></header>
@@ -23,7 +33,12 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <div class="sub">BUSINESS WORKSPACE</div><h1>Management Dashboard</h1>
 <p class="muted">Customers · Measurements · Orders · Payments · Inventory · Staff · Tasks</p>
 <div id="message">Connecting securely…</div>
-<div class="nav" id="nav"></div>\n<section class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Business Overview</h2><button class="action" id="refreshOverview" type="button">Refresh overview</button></div><div id="overview" class="muted" style="margin-top:12px">Load your business snapshot.</div></section>
+<div class="nav" id="nav"></div>
+<section class="hero-banner" id="brandHero" aria-label="WamuTailor Fashion House">
+ <div class="hero-copy"><div class="eyebrow">BESPOKE · READY-TO-WEAR · KIGALI</div><h2>Crafted for Your Confidence.</h2><p>Premium tailoring, refined details and a perfect fit — made by WamuTailor.</p>
+ <div class="quick-links"><a href="#recordForm" data-module="customers">Add customer</a><a href="#recordForm" data-module="orders">Create order</a><a href="#recordForm" data-module="products">Manage collection</a></div></div>
+</section>
+<section class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Business Overview</h2><button class="action" id="refreshOverview" type="button">Refresh overview</button></div><div id="overview" class="muted" style="margin-top:12px">Load your business snapshot.</div></section>
 <section class="panel"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><h2 style="margin:0">Business Analytics</h2><p class="muted">Monthly revenue, production costs, operating expenses and estimated net profit.</p></div><button class="action" id="loadMonthlyAnalysis" type="button">Refresh analysis</button></div><div id="monthlyAnalysis" class="muted" style="margin-top:12px">Click refresh analysis to load monthly performance.</div></section>
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
 <section class="panel"><h2>Production Cost & Profit Report</h2><button class="action" id="loadCostReport" type="button">Calculate report</button><div id="costReport" class="muted" style="margin-top:12px">Click to calculate totals from saved orders.</div></section>
@@ -71,6 +86,19 @@ async function api(path,options={},retry=true){
  sessionStorage.setItem("wt_admin_auth",authHeader);
  return r.status===204?null:r.json()
 }
+async function loadBrandHero(){
+ const hero=document.getElementById("brandHero");
+ try{
+  const products=await api("/api/products");
+  const featured=products.find(p=>String(p.active||"yes").toLowerCase()!=="no"&&p.id);
+  if(featured){
+   hero.style.backgroundImage="linear-gradient(90deg,rgba(0,0,0,.88),rgba(0,0,0,.24)),url('/api/products/"+featured.id+"/photo')";
+   hero.style.backgroundPosition="center";
+   hero.style.backgroundSize="cover";
+  }
+ }catch(e){/* keep the elegant black-and-gold fallback when no product photo is available */}
+}
+document.querySelectorAll(".quick-links a[data-module]").forEach(link=>link.addEventListener("click",()=>{const module=link.dataset.module;if(configs[module]){current=module;renderNav();renderForm();loadRecords();}}));
 async function loadBusinessOverview(){
  const root=document.getElementById("overview");root.textContent="Loading business overview…";
  try{
@@ -266,5 +294,5 @@ document.getElementById("saveBtn").onclick=async()=>{const btn=document.getEleme
 
 document.getElementById('recordSearch').addEventListener('input',()=>{const q=document.getElementById('recordSearch').value.toLowerCase();document.querySelectorAll('#tbody tr').forEach(tr=>tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none')});
 document.getElementById('exportBtn').onclick=()=>{const cols=['id',...configs[current].fields.map(x=>x[0])];const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';const csv=[cols.join(','),...cachedRows.map(row=>cols.map(k=>quote(row[k])).join(','))].join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='wamutailor-'+current+'.csv';a.click();URL.revokeObjectURL(url)};
-renderNav();renderForm();loadRecords();loadBusinessOverview();
+renderNav();renderForm();loadRecords();loadBusinessOverview();loadBrandHero();
 </script></body></html>
