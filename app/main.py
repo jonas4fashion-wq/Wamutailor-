@@ -403,6 +403,71 @@ def expense_report(_: str = Depends(require_admin)):
     return {"count": len(rows), "total": total, "by_category": categories}
 
 
+
+@app.get("/api/admin/reports/overview")
+def business_overview(_: str = Depends(require_admin)):
+    """Compact operational snapshot for the admin dashboard."""
+    def number(value):
+        try:
+            return float(str(value or 0).replace(",", "").strip())
+        except (TypeError, ValueError):
+            return 0.0
+
+    with engine.connect() as con:
+        customers = con.execute(select(TABLE_OBJECTS["customers"].c.id)).all()
+        orders = con.execute(select(TABLE_OBJECTS["orders"])).mappings().all()
+        payments = con.execute(select(TABLE_OBJECTS["payments"].c.order_id, TABLE_OBJECTS["payments"].c.amount)).all()
+        inventory = con.execute(select(TABLE_OBJECTS["inventory"])).mappings().all()
+        tasks = con.execute(select(TABLE_OBJECTS["tasks"])).mappings().all()
+        staff = con.execute(select(TABLE_OBJECTS["staff"].c.id)).all()
+
+    paid_by_order = {}
+    for payment in payments:
+        key = str(payment.order_id or "")
+        paid_by_order[key] = paid_by_order.get(key, 0.0) + max(0.0, number(payment.amount))
+
+    open_orders = [o for o in orders if str(o.get("status") or "").strip().lower() not in ("delivered", "cancelled", "complete", "completed")]
+    balance_due = 0.0
+    for order in orders:
+        paid = paid_by_order.get(str(order["id"]), number(order.get("deposit")))
+        balance_due += max(0.0, number(order.get("total")) - paid)
+
+    low_stock = []
+    for item in inventory:
+        qty = number(item.get("quantity"))
+        minimum = number(item.get("minimum_stock"))
+        if qty <= minimum:
+            low_stock.append({
+                "item_name": item.get("item_name") or "Unnamed item",
+                "quantity": qty,
+                "minimum_stock": minimum,
+                "unit": item.get("unit") or "",
+            })
+
+    today = time.strftime("%Y-%m-%d")
+    overdue_tasks = [
+        {"task_name": t.get("task_name") or "Untitled task", "staff_name": t.get("staff_name") or "", "due_date": t.get("due_date") or ""}
+        for t in tasks
+        if t.get("due_date") and str(t.get("due_date")) < today
+        and str(t.get("status") or "").strip().lower() not in ("done", "completed", "finished")
+    ]
+
+    return {
+        "customers": len(customers),
+        "orders_total": len(orders),
+        "orders_open": len(open_orders),
+        "orders_delivered": len(orders) - len(open_orders),
+        "payments_received": round(sum(paid_by_order.values()), 2),
+        "balance_due": round(balance_due, 2),
+        "low_stock_count": len(low_stock),
+        "low_stock_items": low_stock[:8],
+        "staff_count": len(staff),
+        "tasks_active": sum(1 for t in tasks if str(t.get("status") or "").strip().lower() not in ("done", "completed", "finished")),
+        "tasks_overdue": len(overdue_tasks),
+        "overdue_tasks": overdue_tasks[:8],
+        "as_of": today,
+    }
+
 @app.get("/portal", include_in_schema=False)
 def client_portal():
     portal_file = BASE_DIR / "static" / "portal.html"
