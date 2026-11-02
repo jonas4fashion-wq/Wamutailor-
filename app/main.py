@@ -331,6 +331,17 @@ def production_cost_report(_: str = Depends(require_admin)):
             except (TypeError, ValueError):
                 value = 0.0
             totals[{"total":"revenue", "deposit":"deposits", "balance":"balance_due"}.get(key, key)] += value
+    expense_table = TABLE_OBJECTS["expenses"]
+    with engine.connect() as con:
+        expense_rows = con.execute(select(expense_table.c.amount)).all()
+    operating_expenses = 0.0
+    for item in expense_rows:
+        try:
+            operating_expenses += float(str(item.amount or 0).replace(",", "").strip())
+        except (TypeError, ValueError):
+            continue
+    totals["operating_expenses"] = operating_expenses
+    totals["net_profit"] = totals["profit"] - operating_expenses
     return totals
 
 @app.get("/api/admin/reports/expenses")
