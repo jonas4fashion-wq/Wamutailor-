@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101010">
+  <title>WamuTailor | Admin</title>
+  <style>
+    :root { color-scheme: dark; --bg:#101010; --panel:#191919; --line:#34302a; --gold:#d5b15e; --muted:#aaa49a; --text:#f5f1e8; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 Inter,system-ui,Segoe UI,sans-serif; }
+    header { padding:26px clamp(18px,5vw,64px); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:18px; align-items:center; }
+    .brand { letter-spacing:.16em; font-weight:800; color:var(--gold); }
+    .sub { color:var(--muted); font-size:12px; letter-spacing:.12em; text-transform:uppercase; }
+    main { max-width:1120px; margin:auto; padding:38px 20px 64px; }
+    h1 { font-size:clamp(28px,5vw,44px); margin:8px 0; }
+    .intro { color:var(--muted); max-width:700px; }
+    .status { display:inline-flex; gap:8px; align-items:center; border:1px solid var(--line); border-radius:99px; padding:6px 11px; color:var(--gold); font-size:12px; }
+    .dot { width:7px; height:7px; background:#d5b15e; border-radius:50%; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin:28px 0; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
+    .card strong { display:block; font-size:25px; color:var(--gold); margin:4px 0; }
+    .card span { color:var(--muted); font-size:13px; }
+    h2 { font-size:18px; margin:34px 0 12px; }
+    .modules { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
+    .module { background:var(--panel); border:1px solid var(--line); padding:14px 16px; border-radius:10px; }
+    .module b { display:block; font-size:14px; }
+    .module small { color:var(--muted); }
+    .note { border-left:3px solid var(--gold); background:#211e18; padding:14px 17px; border-radius:5px; color:#d9d2c4; margin-top:24px; }
+    footer { color:var(--muted); border-top:1px solid var(--line); padding:20px; text-align:center; font-size:12px; }
+    a { color:var(--gold); }
+  </style>
+</head>
+<body>
+  <header>
+    <div><div class="brand">WAMUTAILOR</div><div class="sub">Fashion House · Kigali</div></div>
+    <div class="status"><i class="dot"></i> Deployment foundation</div>
+  </header>
+  <main>
+    <div class="sub">Management workspace</div>
+    <h1>Admin Dashboard</h1>
+    <p class="intro">A central workspace for WamuTailor customers, measurements, orders, payments, production and inventory. This first online-ready version establishes the application and health checks.</p>
+    <section class="grid" aria-label="System status">
+      <div class="card"><span>Application</span><strong>Online-ready</strong><span>FastAPI foundation</span></div>
+      <div class="card"><span>Backend health</span><strong id="health">Checking…</strong><span id="health-detail">Contacting server</span></div>
+      <div class="card"><span>Database</span><strong>Not connected</strong><span>PostgreSQL setup is next</span></div>
+      <div class="card"><span>Security</span><strong>Setup pending</strong><span>Authentication required before real data</span></div>
+    </section>
+    <h2>Development modules</h2>
+    <section class="modules">
+      <div class="module"><b>Customer Management</b><small>Registration, search, update and delete — prototype</small></div>
+      <div class="module"><b>Measurements</b><small>Customer measurement records — prototype</small></div>
+      <div class="module"><b>Orders & Production</b><small>Order creation, search and status — prototype</small></div>
+      <div class="module"><b>Payments & Reports</b><small>Payment history and sales reports — prototype</small></div>
+      <div class="module"><b>Inventory</b><small>Stock, movements and reports — prototype</small></div>
+      <div class="module"><b>Material Recipes & Usage</b><small>Material recipes and order usage — prototype</small></div>
+    </section>
+    <div class="note"><b>Important:</b> This is not yet the live business system. Database storage, staff login, permissions, backups and security checks must be completed before entering real customer measurements, contact details or payment records.</div>
+    <p class="sub" style="margin-top:24px">API documentation: <a href="/docs">Open API docs</a> · Health: <a href="/health">Check service health</a></p>
+  </main>
+  <footer>WamuTailor Fashion · Kigali, Rwanda</footer>
+  <script>
+    fetch('/health').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+      document.getElementById('health').textContent = 'Healthy';
+      document.getElementById('health-detail').textContent = data.status;
+    }).catch(() => {
+      document.getElementById('health').textContent = 'Unavailable';
+      document.getElementById('health-detail').textContent = 'Refresh after the server starts';
+    });
+  </script>
+</body>
+</html>
