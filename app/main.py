@@ -37,7 +37,7 @@ TABLES = {
     "staff": {"fields": ["name", "phone", "email", "role", "skills", "employment_type", "hire_date", "base_salary", "emergency_contact", "status", "notes"], "required": ["name", "role"]},
     "tasks": {"fields": ["task_name", "staff_name", "order_id", "customer_name", "start_date", "due_date", "priority", "status", "notes"], "required": ["task_name", "staff_name"]},
     "expenses": {"fields": ["category", "description", "amount", "expense_date", "payment_method", "reference", "notes"], "required": ["category", "description", "amount"]},
-    "attendance": {"fields": ["staff_name", "attendance_date", "check_in", "check_out", "status", "notes"], "required": ["staff_name", "attendance_date", "status"]},
+    "attendance": {"fields": ["staff_name", "attendance_date", "check_in", "check_out", "status", "approval_status", "approved_by", "approval_notes", "notes"], "required": ["staff_name", "attendance_date", "status"]},
     "leave_requests": {"fields": ["staff_name", "leave_type", "start_date", "end_date", "days", "status", "reason", "decision_notes"], "required": ["staff_name", "leave_type", "start_date", "end_date"]},
     "payroll": {"fields": ["staff_name", "pay_period", "basic_salary", "allowances", "deductions", "net_pay", "payment_date", "payment_method", "reference", "status", "notes"], "required": ["staff_name", "pay_period", "basic_salary"]},
     "chat_messages": {"fields": ["customer_phone", "sender_role", "sender_name", "message", "read_by_admin", "read_by_client"], "required": ["customer_phone", "sender_role", "message"]},
@@ -103,6 +103,13 @@ def startup():
             order_cols = [row[1] for row in con.execute(text("PRAGMA table_info(orders)"))]
         else:
             order_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'orders'"))]
+        if engine.dialect.name == "sqlite":
+            attendance_cols = [row[1] for row in con.execute(text("PRAGMA table_info(attendance)"))]
+        else:
+            attendance_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'attendance'"))]
+        for attendance_col in ("approval_status", "approved_by", "approval_notes"):
+            if attendance_col not in attendance_cols:
+                con.execute(text(f"ALTER TABLE attendance ADD COLUMN {attendance_col} TEXT"))
         for cost_col in ("material_cost", "labor_cost", "other_cost", "production_cost", "profit"):
             if cost_col not in order_cols:
                 con.execute(text(f"ALTER TABLE orders ADD COLUMN {cost_col} TEXT"))
@@ -464,6 +471,21 @@ def low_stock_report(_: str = Depends(require_admin)):
             item["alert"] = "OUT OF STOCK" if quantity <= 0 else "LOW STOCK"
             alerts.append(item)
     return {"alert_count": len(alerts), "out_of_stock": sum(1 for x in alerts if x["quantity_numeric"] <= 0), "low_stock": sum(1 for x in alerts if x["quantity_numeric"] > 0), "items": alerts}
+
+
+@app.post("/api/admin/attendance/{record_id}/approve")
+def approve_attendance(record_id: int, payload: dict[str, Any] = {}, admin: str = Depends(require_admin)):
+    table = TABLE_OBJECTS["attendance"]
+    decision = str(payload.get("decision", "Approved")).strip()
+    if decision not in ("Approved", "Rejected"):
+        raise HTTPException(422, "Decision must be Approved or Rejected.")
+    with engine.begin() as con:
+        row = con.execute(select(table).where(table.c.id == record_id)).mappings().first()
+        if not row:
+            raise HTTPException(404, "Attendance record not found.")
+        con.execute(table.update().where(table.c.id == record_id).values(approval_status=decision, approved_by=admin, approval_notes=str(payload.get("approval_notes", "")).strip()))
+        updated = con.execute(select(table).where(table.c.id == record_id)).mappings().one()
+    return dict(updated)
 
 
 @app.get("/api/admin/reports/staff-performance")
