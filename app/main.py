@@ -645,6 +645,22 @@ def client_dashboard(customer: dict = Depends(require_client)):
     return {"customer": {"name": customer["name"], "phone": phone, "email": customer.get("email")}, "orders": [dict(x) for x in orders], "measurements": [dict(x) for x in measurements], "payments": [dict(x) for x in payments]}
 
 
+@app.post("/api/client/measurements")
+def client_add_measurements(payload: dict[str, Any], customer: dict = Depends(require_client)):
+    table = TABLE_OBJECTS["measurements"]
+    allowed = ["neck", "shoulder", "chest", "waist", "hip", "sleeve", "shirt_length", "trouser_length", "unit"]
+    data = {key: str(payload.get(key, "")).strip() for key in allowed if payload.get(key) is not None}
+    if not any(data.get(key) for key in allowed if key != "unit"):
+        raise HTTPException(422, "Enter at least one body measurement.")
+    data["customer_name"] = str(customer.get("name") or "").strip()
+    data["customer_phone"] = str(customer.get("phone") or "").strip()
+    data["unit"] = data.get("unit") or "cm"
+    with engine.begin() as con:
+        result = con.execute(table.insert().values(**data))
+        measurement_id = result.inserted_primary_key[0]
+    return {"saved": True, "measurement_id": measurement_id, "message": "Your measurements have been submitted to WamuTailor."}
+
+
 @app.get("/api/admin/customers/{customer_id}/profile")
 def customer_profile(customer_id: int, _: str = Depends(require_admin)):
     customers = TABLE_OBJECTS["customers"]
