@@ -30,7 +30,7 @@ bearer = HTTPBearer(auto_error=False)
 TABLES = {
     "customers": {"fields": ["name", "phone", "email", "address", "notes"], "required": ["name", "phone"]},
     "measurements": {"fields": ["customer_name", "customer_phone", "neck", "shoulder", "chest", "waist", "hip", "sleeve", "shirt_length", "trouser_length", "unit"], "required": ["customer_name", "customer_phone"]},
-    "orders": {"fields": ["customer_name", "customer_phone", "product", "quantity", "unit_price", "total", "deposit", "balance", "delivery_date", "status", "notes"], "required": ["customer_name", "customer_phone", "product"]},
+    "orders": {"fields": ["customer_name", "customer_phone", "product", "quantity", "unit_price", "total", "deposit", "balance", "material_cost", "labor_cost", "other_cost", "production_cost", "profit", "delivery_date", "status", "notes"], "required": ["customer_name", "customer_phone", "product"]},
     "payments": {"fields": ["order_id", "customer_name", "amount", "method", "payment_date", "reference", "notes"], "required": ["order_id", "amount"]},
     "inventory": {"fields": ["item_name", "unit", "quantity", "unit_cost", "minimum_stock", "notes"], "required": ["item_name", "unit"]},
     "products": {"fields": ["name", "sku", "category", "description", "price", "currency", "stock_quantity", "active"], "required": ["name", "price"]},
@@ -69,8 +69,26 @@ def startup():
             con.execute(text("ALTER TABLE products ADD COLUMN photo_content_type TEXT"))
         if "stock_quantity" not in product_cols:
             con.execute(text("ALTER TABLE products ADD COLUMN stock_quantity TEXT DEFAULT '0'"))
+        if engine.dialect.name == "sqlite":
+            order_cols = [row[1] for row in con.execute(text("PRAGMA table_info(orders)"))]
+        else:
+            order_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'orders'"))]
+        for cost_col in ("material_cost", "labor_cost", "other_cost", "production_cost", "profit"):
+            if cost_col not in order_cols:
+                con.execute(text(f"ALTER TABLE orders ADD COLUMN {cost_col} TEXT"))
 
 
+
+
+def calculate_order_costs(data: dict[str, Any]) -> dict[str, str]:
+    def amount(key: str) -> float:
+        try:
+            return max(0.0, float(str(data.get(key, "0") or "0").replace(",", "").strip()))
+        except (TypeError, ValueError):
+            return 0.0
+    material, labor, other = amount("material_cost"), amount("labor_cost"), amount("other_cost")
+    production = material + labor + other
+    return {"material_cost": str(material), "labor_cost": str(labor), "other_cost": str(other), "production_cost": str(production), "profit": str(amount("total") - production)}
 
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)):
     username = os.getenv("ADMIN_USERNAME", "")
@@ -184,6 +202,8 @@ def create_record(module: str, payload: dict[str, Any], _: str = Depends(require
     if missing:
         raise HTTPException(422, f"Required fields: {', '.join(missing)}")
     data = {field: str(payload.get(field, "")).strip() for field in spec["fields"] if field in payload}
+    if module == "orders":
+        data.update(calculate_order_costs({**payload, **data}))
     if not data:
         raise HTTPException(422, "No supported fields supplied")
     table = TABLE_OBJECTS[module]
@@ -199,6 +219,12 @@ def update_record(module: str, record_id: int, payload: dict[str, Any], _: str =
     if module not in TABLES:
         raise HTTPException(404, "Unknown module")
     data = {field: str(payload[field]).strip() for field in TABLES[module]["fields"] if field in payload}
+    if module == "orders":
+        with engine.connect() as con:
+            existing = con.execute(select(TABLE_OBJECTS["orders"]).where(TABLE_OBJECTS["orders"].c.id == record_id)).mappings().first()
+        if not existing:
+            raise HTTPException(404, "Record not found")
+        data.update(calculate_order_costs({**dict(existing), **payload, **data}))
     if not data:
         raise HTTPException(422, "No supported fields supplied")
     table = TABLE_OBJECTS[module]
@@ -221,6 +247,22 @@ def delete_record(module: str, record_id: int, _: str = Depends(require_admin)):
             raise HTTPException(404, "Record not found")
     return {"deleted": True, "id": record_id}
 
+
+
+@app.get("/api/admin/reports/production-costs")
+def production_cost_report(_: str = Depends(require_admin)):
+    table = TABLE_OBJECTS["orders"]
+    with engine.connect() as con:
+        rows = con.execute(select(table)).mappings().all()
+    totals = {"orders": len(rows), "revenue": 0.0, "material_cost": 0.0, "labor_cost": 0.0, "other_cost": 0.0, "production_cost": 0.0, "profit": 0.0, "deposits": 0.0, "balance_due": 0.0}
+    for row in rows:
+        for key in ("total", "material_cost", "labor_cost", "other_cost", "production_cost", "profit", "deposit", "balance"):
+            try:
+                value = float(str(row.get(key) or 0).replace(",", ""))
+            except (TypeError, ValueError):
+                value = 0.0
+            totals[{"total":"revenue", "deposit":"deposits", "balance":"balance_due"}.get(key, key)] += value
+    return totals
 
 @app.get("/portal", include_in_schema=False)
 def client_portal():
