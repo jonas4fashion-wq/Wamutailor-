@@ -36,6 +36,7 @@ TABLES = {
     "products": {"fields": ["name", "sku", "category", "description", "price", "currency", "stock_quantity", "active"], "required": ["name", "price"]},
     "staff": {"fields": ["name", "phone", "role", "skills", "status", "notes"], "required": ["name", "role"]},
     "tasks": {"fields": ["task_name", "staff_name", "order_id", "customer_name", "start_date", "due_date", "priority", "status", "notes"], "required": ["task_name", "staff_name"]},
+    "expenses": {"fields": ["category", "description", "amount", "expense_date", "payment_method", "reference", "notes"], "required": ["category", "description", "amount"]},
 }
 TABLE_OBJECTS = {}
 for table_name, spec in TABLES.items():
@@ -331,6 +332,24 @@ def production_cost_report(_: str = Depends(require_admin)):
                 value = 0.0
             totals[{"total":"revenue", "deposit":"deposits", "balance":"balance_due"}.get(key, key)] += value
     return totals
+
+@app.get("/api/admin/reports/expenses")
+def expense_report(_: str = Depends(require_admin)):
+    table = TABLE_OBJECTS["expenses"]
+    with engine.connect() as con:
+        rows = con.execute(select(table)).mappings().all()
+    total = 0.0
+    categories = {}
+    for row in rows:
+        try:
+            amount = float(str(row.get("amount") or 0).replace(",", "").strip())
+        except (TypeError, ValueError):
+            amount = 0.0
+        total += amount
+        category = str(row.get("category") or "Uncategorized")
+        categories[category] = categories.get(category, 0.0) + amount
+    return {"count": len(rows), "total": total, "by_category": categories}
+
 
 @app.get("/portal", include_in_schema=False)
 def client_portal():
