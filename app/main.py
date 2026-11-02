@@ -241,5 +241,9 @@ def client_dashboard(customer: dict = Depends(require_client)):
     with engine.connect() as con:
         orders = con.execute(select(TABLE_OBJECTS["orders"]).where(TABLE_OBJECTS["orders"].c.customer_phone == phone).order_by(TABLE_OBJECTS["orders"].c.id.desc())).mappings().all()
         measurements = con.execute(select(TABLE_OBJECTS["measurements"]).where(TABLE_OBJECTS["measurements"].c.customer_phone == phone).order_by(TABLE_OBJECTS["measurements"].c.id.desc())).mappings().all()
-        payments = con.execute(select(TABLE_OBJECTS["payments"]).where(TABLE_OBJECTS["payments"].c.customer_name == customer["name"]).order_by(TABLE_OBJECTS["payments"].c.id.desc())).mappings().all()
+        own_order_ids = [str(order["id"]) for order in orders]
+        if own_order_ids:
+            payments = con.execute(select(TABLE_OBJECTS["payments"]).where(TABLE_OBJECTS["payments"].c.order_id.in_(own_order_ids)).order_by(TABLE_OBJECTS["payments"].c.id.desc())).mappings().all()
+        else:
+            payments = []
     return {"customer": {"name": customer["name"], "phone": phone, "email": customer.get("email")}, "orders": [dict(x) for x in orders], "measurements": [dict(x) for x in measurements], "payments": [dict(x) for x in payments]}
