@@ -385,6 +385,49 @@ def production_cost_report(_: str = Depends(require_admin)):
     totals["net_profit"] = totals["profit"] - operating_expenses
     return totals
 
+@app.get("/api/admin/reports/monthly-analysis")
+def monthly_analysis(_: str = Depends(require_admin)):
+    orders_table = TABLE_OBJECTS["orders"]
+    expenses_table = TABLE_OBJECTS["expenses"]
+    payments_table = TABLE_OBJECTS["payments"]
+    with engine.connect() as con:
+        orders = con.execute(select(orders_table.c.total, orders_table.c.production_cost, orders_table.c.profit, orders_table.c.created_at)).all()
+        expenses = con.execute(select(expenses_table.c.amount, expenses_table.c.expense_date, expenses_table.c.created_at)).all()
+        payments = con.execute(select(payments_table.c.amount, payments_table.c.payment_date, payments_table.c.created_at)).all()
+    months = {}
+    def month_bucket(value):
+        stamp = str(value or "")
+        return stamp[:7] if len(stamp) >= 7 and stamp[4:5] == "-" else ""
+    def amount(value):
+        try:
+            return float(str(value or 0).replace(",", "").strip())
+        except (TypeError, ValueError):
+            return 0.0
+    def bucket(key):
+        if key not in months:
+            months[key] = {"month": key, "revenue": 0.0, "production_cost": 0.0, "gross_profit": 0.0, "operating_expenses": 0.0, "net_profit_estimate": 0.0, "payments_received": 0.0}
+        return months[key]
+    for row in orders:
+        key = month_bucket(row.created_at)
+        if key:
+            item = bucket(key)
+            item["revenue"] += amount(row.total)
+            item["production_cost"] += amount(row.production_cost)
+            item["gross_profit"] += amount(row.profit)
+    for row in expenses:
+        key = month_bucket(row.expense_date) or month_bucket(row.created_at)
+        if key:
+            bucket(key)["operating_expenses"] += amount(row.amount)
+    for row in payments:
+        key = month_bucket(row.payment_date) or month_bucket(row.created_at)
+        if key:
+            bucket(key)["payments_received"] += amount(row.amount)
+    result = sorted(months.values(), key=lambda item: item["month"])[-12:]
+    for item in result:
+        item["net_profit_estimate"] = item["gross_profit"] - item["operating_expenses"]
+    return {"months": result, "months_count": len(result), "note": "Order revenue and production costs are grouped by order creation month; expenses and payments use their recorded dates when available."}
+
+
 @app.get("/api/admin/reports/low-stock")
 def low_stock_report(_: str = Depends(require_admin)):
     table = TABLE_OBJECTS["inventory"]
