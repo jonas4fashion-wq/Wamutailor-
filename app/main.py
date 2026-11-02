@@ -90,6 +90,37 @@ def calculate_order_costs(data: dict[str, Any]) -> dict[str, str]:
     production = material + labor + other
     return {"material_cost": str(material), "labor_cost": str(labor), "other_cost": str(other), "production_cost": str(production), "profit": str(amount("total") - production)}
 
+
+def sync_order_payment_totals(con, order_id: str) -> None:
+    """Recalculate an order's paid and outstanding amounts from its payment ledger."""
+    try:
+        numeric_id = int(str(order_id).strip())
+    except (TypeError, ValueError):
+        raise HTTPException(422, "A valid order ID is required for a payment.")
+    order_table = TABLE_OBJECTS["orders"]
+    payment_table = TABLE_OBJECTS["payments"]
+    order = con.execute(select(order_table).where(order_table.c.id == numeric_id)).mappings().first()
+    if not order:
+        raise HTTPException(404, "Order not found for this payment.")
+    payments = con.execute(select(payment_table.c.amount).where(payment_table.c.order_id == str(numeric_id))).all()
+    paid = 0.0
+    for item in payments:
+        try:
+            amount = float(str(item.amount or 0).replace(",", "").strip())
+        except (TypeError, ValueError):
+            amount = 0.0
+        if amount < 0:
+            raise HTTPException(422, "Payment amounts cannot be negative.")
+        paid += amount
+    try:
+        total = float(str(order.get("total") or 0).replace(",", "").strip())
+    except (TypeError, ValueError):
+        total = 0.0
+    con.execute(order_table.update().where(order_table.c.id == numeric_id).values(
+        deposit=str(paid), balance=str(max(0.0, total - paid))
+    ))
+
+
 def require_admin(credentials: HTTPBasicCredentials = Depends(security)):
     username = os.getenv("ADMIN_USERNAME", "")
     password = os.getenv("ADMIN_PASSWORD", "")
@@ -204,12 +235,22 @@ def create_record(module: str, payload: dict[str, Any], _: str = Depends(require
     data = {field: str(payload.get(field, "")).strip() for field in spec["fields"] if field in payload}
     if module == "orders":
         data.update(calculate_order_costs({**payload, **data}))
+    if module == "payments":
+        try:
+            amount = float(str(data.get("amount", "0")).replace(",", "").strip())
+        except (TypeError, ValueError):
+            raise HTTPException(422, "Enter a valid payment amount.")
+        if amount <= 0:
+            raise HTTPException(422, "Payment amount must be greater than zero.")
+        data["amount"] = str(amount)
     if not data:
         raise HTTPException(422, "No supported fields supplied")
     table = TABLE_OBJECTS[module]
     with engine.begin() as con:
         result = con.execute(table.insert().values(**data))
         record_id = result.inserted_primary_key[0]
+        if module == "payments":
+            sync_order_payment_totals(con, data["order_id"])
         row = con.execute(select(table).where(table.c.id == record_id)).mappings().one()
     return dict(row)
 
@@ -225,13 +266,31 @@ def update_record(module: str, record_id: int, payload: dict[str, Any], _: str =
         if not existing:
             raise HTTPException(404, "Record not found")
         data.update(calculate_order_costs({**dict(existing), **payload, **data}))
+    if module == "payments" and "amount" in data:
+        try:
+            amount = float(str(data["amount"]).replace(",", "").strip())
+        except (TypeError, ValueError):
+            raise HTTPException(422, "Enter a valid payment amount.")
+        if amount <= 0:
+            raise HTTPException(422, "Payment amount must be greater than zero.")
+        data["amount"] = str(amount)
     if not data:
         raise HTTPException(422, "No supported fields supplied")
     table = TABLE_OBJECTS[module]
     with engine.begin() as con:
+        old_payment = None
+        if module == "payments":
+            old_payment = con.execute(select(table).where(table.c.id == record_id)).mappings().first()
+            if not old_payment:
+                raise HTTPException(404, "Record not found")
         result = con.execute(table.update().where(table.c.id == record_id).values(**data))
         if result.rowcount == 0:
             raise HTTPException(404, "Record not found")
+        if module == "payments":
+            sync_order_payment_totals(con, str(old_payment["order_id"]))
+            new_order_id = str(data.get("order_id", old_payment["order_id"]))
+            if new_order_id != str(old_payment["order_id"]):
+                sync_order_payment_totals(con, new_order_id)
         row = con.execute(select(table).where(table.c.id == record_id)).mappings().one()
     return dict(row)
 
@@ -242,9 +301,16 @@ def delete_record(module: str, record_id: int, _: str = Depends(require_admin)):
         raise HTTPException(404, "Unknown module")
     table = TABLE_OBJECTS[module]
     with engine.begin() as con:
+        old_payment = None
+        if module == "payments":
+            old_payment = con.execute(select(table).where(table.c.id == record_id)).mappings().first()
+            if not old_payment:
+                raise HTTPException(404, "Record not found")
         result = con.execute(table.delete().where(table.c.id == record_id))
         if result.rowcount == 0:
             raise HTTPException(404, "Record not found")
+        if old_payment:
+            sync_order_payment_totals(con, str(old_payment["order_id"]))
     return {"deleted": True, "id": record_id}
 
 
