@@ -131,6 +131,14 @@ def require_client(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
 
 
 @app.get("/", include_in_schema=False)
+def home_page():
+    home_file = BASE_DIR / "static" / "home.html"
+    if not home_file.exists():
+        return JSONResponse(status_code=503, content={"detail": "WamuTailor home page is not installed."})
+    return FileResponse(home_file)
+
+
+@app.get("/admin", include_in_schema=False)
 def dashboard():
     if not DASHBOARD_FILE.exists():
         return JSONResponse(status_code=503, content={"detail": "Dashboard file is not installed."})
