@@ -385,6 +385,51 @@ def production_cost_report(_: str = Depends(require_admin)):
     totals["net_profit"] = totals["profit"] - operating_expenses
     return totals
 
+@app.get("/api/admin/reports/staff-performance")
+def staff_performance_report(_: str = Depends(require_admin)):
+    staff_table = TABLE_OBJECTS["staff"]
+    task_table = TABLE_OBJECTS["tasks"]
+    attendance_table = TABLE_OBJECTS["attendance"]
+    payroll_table = TABLE_OBJECTS["payroll"]
+    with engine.connect() as con:
+        staff_rows = con.execute(select(staff_table)).mappings().all()
+        task_rows = con.execute(select(task_table)).mappings().all()
+        attendance_rows = con.execute(select(attendance_table)).mappings().all()
+        payroll_rows = con.execute(select(payroll_table)).mappings().all()
+    def norm(value):
+        return str(value or "").strip().casefold()
+    names = {norm(row.get("name")): str(row.get("name") or "") for row in staff_rows if row.get("name")}
+    for row in task_rows + attendance_rows + payroll_rows:
+        name = str(row.get("staff_name") or "").strip()
+        if name and norm(name) not in names:
+            names[norm(name)] = name
+    report = []
+    for key, name in names.items():
+        assigned = [row for row in task_rows if norm(row.get("staff_name")) == key]
+        completed = [row for row in assigned if norm(row.get("status")) in ("done", "completed", "finished")]
+        attendance = [row for row in attendance_rows if norm(row.get("staff_name")) == key]
+        present = sum(1 for row in attendance if norm(row.get("status")) in ("present", "late"))
+        late = sum(1 for row in attendance if norm(row.get("status")) == "late")
+        paid = 0.0
+        for row in payroll_rows:
+            if norm(row.get("staff_name")) == key and norm(row.get("status")) == "paid":
+                try:
+                    paid += float(str(row.get("net_pay") or 0).replace(",", "").strip())
+                except (TypeError, ValueError):
+                    pass
+        report.append({
+            "staff_name": name,
+            "tasks_assigned": len(assigned),
+            "tasks_completed": len(completed),
+            "tasks_open": len(assigned) - len(completed),
+            "attendance_days_present": present,
+            "late_days": late,
+            "payroll_paid_total": paid,
+        })
+    report.sort(key=lambda item: item["staff_name"].casefold())
+    return {"employees": len(report), "staff": report}
+
+
 @app.get("/api/admin/reports/expenses")
 def expense_report(_: str = Depends(require_admin)):
     table = TABLE_OBJECTS["expenses"]
