@@ -26,6 +26,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <div class="nav" id="nav"></div>
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
 <section class="panel"><h2>Production Cost & Profit Report</h2><button class="action" id="loadCostReport" type="button">Calculate report</button><div id="costReport" class="muted" style="margin-top:12px">Click to calculate totals from saved orders.</div></section>
+<section class="panel"><h2>Business Expense Report</h2><p class="muted">Track rent, utilities, transport, supplies and other operating expenses.</p><button class="action" id="loadExpenseReport" type="button">Calculate expense report</button><div id="expenseReport" class="muted" style="margin-top:12px">Click to calculate recorded business expenses.</div></section>
 <section class="panel"><h2>Staff Task Overview</h2><p class="muted">Review assignments, deadlines and overdue work by staff member.</p><button class="action" id="loadTaskOverview" type="button">Refresh task overview</button><div id="taskOverview" class="muted" style="margin-top:12px">Click to load staff tasks.</div></section>
 <section class="panel" id="profilePanel" style="display:none"><h2>Customer Profile</h2><div id="profileContent"></div><button class="action" id="closeProfile" type="button">Close profile</button></section><section class="panel"><h2>Records</h2><input id="recordSearch" placeholder="Search records..." style="max-width:360px"><button class="action" id="exportBtn" type="button">Export CSV</button><div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></section>
 <p class="sub">WamuTailor Management · Keep regular database backups and verify each order and payment.</p>
@@ -39,7 +40,8 @@ const configs={
  inventory:{title:"Inventory",fields:[["item_name","Item name"],["unit","Unit"],["quantity","Quantity"],["unit_cost","Unit cost"],["minimum_stock","Minimum stock"],["notes","Notes"]]},
  products:{title:"Products",fields:[["name","Product name"],["sku","SKU / Code"],["category","Category"],["description","Description"],["price","Price (RWF)"],["currency","Currency"],["stock_quantity","Finished stock quantity"],["active","Active (yes/no)"]]},
  staff:{title:"Staff",fields:[["name","Staff name"],["phone","Phone"],["role","Role / Position"],["skills","Skills"],["status","Status (Active/Inactive)"],["notes","Notes"]]},
- tasks:{title:"Staff Tasks",fields:[["task_name","Task / Work"],["staff_name","Assigned staff member"],["order_id","Order ID (optional)"],["customer_name","Customer name"],["start_date","Start date"],["due_date","Deadline"],["priority","Priority (Low/Normal/High)"],["status","Status (To Do/In Progress/Done/Blocked)"],["notes","Instructions / Notes"]]}
+ tasks:{title:"Staff Tasks",fields:[["task_name","Task / Work"],["staff_name","Assigned staff member"],["order_id","Order ID (optional)"],["customer_name","Customer name"],["start_date","Start date"],["due_date","Deadline"],["priority","Priority (Low/Normal/High)"],["status","Status (To Do/In Progress/Done/Blocked)"],["notes","Instructions / Notes"]]},
+ expenses:{title:"Business Expenses",fields:[["category","Category"],["description","Description"],["amount","Amount (RWF)"],["expense_date","Expense date"],["payment_method","Payment method"],["reference","Receipt / Reference"],["notes","Notes"]]}
 };
 let current="customers", cachedRows=[];
 const nav=document.getElementById("nav"), form=document.getElementById("recordForm");
@@ -82,6 +84,17 @@ async function editRecord(row){const fields=configs[current].fields;const change
 async function deleteRecord(id){if(!confirm("Delete record #"+id+"?"))return;try{await api("/api/"+current+"/"+id,{method:"DELETE"});await loadRecords()}catch(e){message(e.message)}}
 async function loadCostReport(){try{const r=await api("/api/admin/reports/production-costs");const money=v=>Number(v||0).toLocaleString("en-US",{maximumFractionDigits:0})+" RWF";document.getElementById("costReport").innerHTML="<p>Orders: "+r.orders+"</p><p>Revenue: "+money(r.revenue)+"</p><p>Material cost: "+money(r.material_cost)+"</p><p>Labor cost: "+money(r.labor_cost)+"</p><p>Other production cost: "+money(r.other_cost)+"</p><p>Total production cost: "+money(r.production_cost)+"</p><p><strong>Estimated profit: "+money(r.profit)+"</strong></p><p>Deposits received: "+money(r.deposits)+"</p><p>Balance due: "+money(r.balance_due)+"</p>";}catch(e){message(e.message)}}
 document.getElementById("loadCostReport").onclick=loadCostReport;
+async function loadExpenseReport(){
+ try{
+  const r=await api("/api/admin/reports/expenses");
+  const money=v=>Number(v||0).toLocaleString("en-US",{maximumFractionDigits:0})+" RWF";
+  const root=document.getElementById("expenseReport");root.innerHTML="";
+  const summary=document.createElement("p");summary.textContent="Recorded expenses: "+r.count+" · Total: "+money(r.total);root.appendChild(summary);
+  Object.entries(r.by_category||{}).sort((a,b)=>b[1]-a[1]).forEach(([name,value])=>{const p=document.createElement("p");p.textContent=name+": "+money(value);root.appendChild(p)});
+  if(!r.count){const p=document.createElement("p");p.textContent="No expenses recorded yet.";root.appendChild(p)}
+ }catch(e){message(e.message)}
+}
+document.getElementById("loadExpenseReport").onclick=loadExpenseReport;
 async function loadTaskOverview(){
  const root=document.getElementById("taskOverview");
  root.textContent="Loading tasks…";
