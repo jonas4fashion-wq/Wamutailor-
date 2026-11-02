@@ -1,0 +1,1 @@
+"""WamuTailor Fashion application package."""
