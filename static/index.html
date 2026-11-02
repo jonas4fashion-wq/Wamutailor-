@@ -25,7 +25,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <div id="message">Connecting securely…</div>
 <div class="nav" id="nav"></div>
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
-<section class="panel"><h2>Records</h2><div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></section>
+<section class="panel"><h2>Records</h2><input id="recordSearch" placeholder="Search records..." style="max-width:360px"><button class="action" id="exportBtn" type="button">Export CSV</button><div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></section>
 <p class="sub">Prototype release 0.2 · Do not enter real customer data until PostgreSQL persistence, backups and full production security are completed.</p>
 </main>
 <script>
@@ -36,7 +36,7 @@ const configs={
  payments:{title:"Payments",fields:[["order_id","Order ID"],["customer_name","Customer name"],["amount","Amount (RWF)"],["method","Method"],["payment_date","Payment date"],["reference","Reference"],["notes","Notes"]]},
  inventory:{title:"Inventory",fields:[["item_name","Item name"],["unit","Unit"],["quantity","Quantity"],["unit_cost","Unit cost"],["minimum_stock","Minimum stock"],["notes","Notes"]]}
 };
-let current="customers";
+let current="customers", cachedRows=[];
 const nav=document.getElementById("nav"), form=document.getElementById("recordForm");
 function message(t){document.getElementById("message").textContent=t}
 function renderNav(){nav.innerHTML="";Object.entries(configs).forEach(([key,c])=>{const b=document.createElement("button");b.textContent=c.title;b.className=key===current?"active":"";b.onclick=()=>{current=key;renderNav();renderForm();loadRecords()};nav.appendChild(b)})}
@@ -57,8 +57,13 @@ async function api(path,options={},retry=true){
  sessionStorage.setItem("wt_admin_auth",authHeader);
  return r.status===204?null:r.json()
 }
-async function loadRecords(){try{const rows=await api("/api/"+current);const cols=configs[current].fields.map(x=>x[0]);document.getElementById("thead").innerHTML="<tr><th>ID</th>"+cols.map(k=>"<th>"+k.replaceAll("_"," ")+"</th>").join("")+"<th>Action</th></tr>";const body=document.getElementById("tbody");body.innerHTML="";rows.forEach(row=>{const tr=document.createElement("tr");tr.innerHTML="<td>"+row.id+"</td>"+cols.map(k=>"<td></td>").join("")+"<td><button class='action' data-id='"+row.id+"'>Delete</button></td>";cols.forEach((k,i)=>tr.children[i+1].textContent=row[k]??"");tr.querySelector("button").onclick=()=>deleteRecord(row.id);if(current==="customers"){const action=document.createElement("button");action.className="action";action.textContent="Enable portal";action.onclick=async()=>{const password=prompt("Set client password (minimum 10 characters). Share it privately with the client.");if(!password)return;try{await api("/api/admin/customers/"+row.id+"/portal-access",{method:"POST",body:JSON.stringify({password})});message("Client portal enabled for "+row.name)}catch(e){message(e.message)}};tr.lastElementChild.appendChild(action)}body.appendChild(tr)});message(rows.length+" records loaded")}catch(e){message(e.message)}}
+async function loadRecords(){try{const rows=await api("/api/"+current);cachedRows=rows;const cols=configs[current].fields.map(x=>x[0]);document.getElementById("thead").innerHTML="<tr><th>ID</th>"+cols.map(k=>"<th>"+k.replaceAll("_"," ")+"</th>").join("")+"<th>Action</th></tr>";const body=document.getElementById("tbody");body.innerHTML="";rows.forEach(row=>{const tr=document.createElement("tr");tr.innerHTML="<td>"+row.id+"</td>"+cols.map(k=>"<td></td>").join("")+"<td><button class='action' data-id='"+row.id+"'>Delete</button></td>";cols.forEach((k,i)=>tr.children[i+1].textContent=row[k]??"");tr.querySelector("button").onclick=()=>deleteRecord(row.id);const edit=document.createElement("button");edit.className="action";edit.textContent="Edit";edit.onclick=()=>editRecord(row);tr.lastElementChild.appendChild(edit);if(current==="customers"){const action=document.createElement("button");action.className="action";action.textContent="Enable portal";action.onclick=async()=>{const password=prompt("Set client password (minimum 10 characters). Share it privately with the client.");if(!password)return;try{await api("/api/admin/customers/"+row.id+"/portal-access",{method:"POST",body:JSON.stringify({password})});message("Client portal enabled for "+row.name)}catch(e){message(e.message)}};tr.lastElementChild.appendChild(action)}body.appendChild(tr)});message(rows.length+" records loaded")}catch(e){message(e.message)}}
+
+async function editRecord(row){const fields=configs[current].fields;const changes={};for(const [key,label] of fields){const value=prompt('Edit '+label+' (Cancel keeps current value):',row[key]??'');if(value===null)continue;if(value!==(row[key]??''))changes[key]=value}if(!Object.keys(changes).length){message('No changes made');return}try{await api('/api/'+current+'/'+row.id,{method:'PUT',body:JSON.stringify(changes)});await loadRecords();message('Record updated')}catch(e){message(e.message)}}
 async function deleteRecord(id){if(!confirm("Delete record #"+id+"?"))return;try{await api("/api/"+current+"/"+id,{method:"DELETE"});await loadRecords()}catch(e){message(e.message)}}
 document.getElementById("saveBtn").onclick=async()=>{const payload=Object.fromEntries(new FormData(form).entries());try{await api("/api/"+current,{method:"POST",body:JSON.stringify(payload)});form.reset();await loadRecords();message("Record saved")}catch(e){message(e.message)}};
+
+document.getElementById('recordSearch').addEventListener('input',()=>{const q=document.getElementById('recordSearch').value.toLowerCase();document.querySelectorAll('#tbody tr').forEach(tr=>tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none')});
+document.getElementById('exportBtn').onclick=()=>{const cols=['id',...configs[current].fields.map(x=>x[0])];const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';const csv=[cols.join(','),...cachedRows.map(row=>cols.map(k=>quote(row[k])).join(','))].join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='wamutailor-'+current+'.csv';a.click();URL.revokeObjectURL(url)};
 renderNav();renderForm();loadRecords();
 </script></body></html>
