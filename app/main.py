@@ -248,3 +248,23 @@ def client_dashboard(customer: dict = Depends(require_client)):
         else:
             payments = []
     return {"customer": {"name": customer["name"], "phone": phone, "email": customer.get("email")}, "orders": [dict(x) for x in orders], "measurements": [dict(x) for x in measurements], "payments": [dict(x) for x in payments]}
+
+
+@app.get("/api/admin/customers/{customer_id}/profile")
+def customer_profile(customer_id: int, _: str = Depends(require_admin)):
+    customers = TABLE_OBJECTS["customers"]
+    with engine.connect() as con:
+        customer = con.execute(select(customers).where(customers.c.id == customer_id)).mappings().first()
+        if not customer:
+            raise HTTPException(404, "Customer not found")
+        phone = customer["phone"]
+        orders = con.execute(select(TABLE_OBJECTS["orders"]).where(TABLE_OBJECTS["orders"].c.customer_phone == phone).order_by(TABLE_OBJECTS["orders"].c.id.desc())).mappings().all()
+        measurements = con.execute(select(TABLE_OBJECTS["measurements"]).where(TABLE_OBJECTS["measurements"].c.customer_phone == phone).order_by(TABLE_OBJECTS["measurements"].c.id.desc())).mappings().all()
+        order_ids = [str(order["id"]) for order in orders]
+        payments = con.execute(select(TABLE_OBJECTS["payments"]).where(TABLE_OBJECTS["payments"].c.order_id.in_(order_ids)).order_by(TABLE_OBJECTS["payments"].c.id.desc())).mappings().all() if order_ids else []
+    return {
+        "customer": {k: customer.get(k) for k in ["id", "name", "phone", "email", "address", "notes"]},
+        "orders": [dict(x) for x in orders],
+        "measurements": [dict(x) for x in measurements],
+        "payments": [dict(x) for x in payments],
+    }
