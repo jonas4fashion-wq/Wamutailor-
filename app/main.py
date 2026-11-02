@@ -445,6 +445,19 @@ def business_overview(_: str = Depends(require_admin)):
             })
 
     today = time.strftime("%Y-%m-%d")
+    from datetime import date, timedelta
+    today_date = date.fromisoformat(today)
+    due_soon_date = (today_date + timedelta(days=7)).isoformat()
+    overdue_orders = [
+        {"id": o["id"], "customer_name": o.get("customer_name") or "", "product": o.get("product") or "", "delivery_date": o.get("delivery_date") or "", "status": o.get("status") or ""}
+        for o in open_orders
+        if o.get("delivery_date") and str(o.get("delivery_date"))[:10] < today
+    ]
+    due_soon_orders = [
+        {"id": o["id"], "customer_name": o.get("customer_name") or "", "product": o.get("product") or "", "delivery_date": o.get("delivery_date") or "", "status": o.get("status") or ""}
+        for o in open_orders
+        if o.get("delivery_date") and today <= str(o.get("delivery_date"))[:10] <= due_soon_date
+    ]
     overdue_tasks = [
         {"task_name": t.get("task_name") or "Untitled task", "staff_name": t.get("staff_name") or "", "due_date": t.get("due_date") or ""}
         for t in tasks
@@ -464,7 +477,12 @@ def business_overview(_: str = Depends(require_admin)):
         "staff_count": len(staff),
         "tasks_active": sum(1 for t in tasks if str(t.get("status") or "").strip().lower() not in ("done", "completed", "finished")),
         "tasks_overdue": len(overdue_tasks),
-        "overdue_tasks": overdue_tasks[:8],
+        "overdue_tasks": len(overdue_tasks),
+        "overdue_tasks_list": overdue_tasks[:8],
+        "overdue_orders_count": len(overdue_orders),
+        "overdue_orders": overdue_orders[:8],
+        "due_soon_orders_count": len(due_soon_orders),
+        "due_soon_orders": due_soon_orders[:8],
         "as_of": today,
     }
 
