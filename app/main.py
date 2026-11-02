@@ -308,3 +308,25 @@ def get_product_photo(product_id: int):
     if not row or not row.photo_data:
         raise HTTPException(404, "Product photo not found")
     return Response(content=row.photo_data, media_type=row.photo_content_type, headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.post("/api/client/change-pin")
+def change_client_pin(payload: dict[str, Any], customer: dict = Depends(require_client)):
+    current_pin = str(payload.get("current_pin", ""))
+    new_pin = str(payload.get("new_pin", ""))
+    if not verify_password(current_pin, customer.get("portal_password_hash", "")):
+        raise HTTPException(401, "Current PIN is incorrect")
+    if len(new_pin) < 10:
+        raise HTTPException(422, "New password/PIN must be at least 10 characters for account safety.")
+    table = TABLE_OBJECTS["customers"]
+    with engine.begin() as con:
+        con.execute(table.update().where(table.c.id == customer["id"]).values(portal_password_hash=hash_password(new_pin)))
+    return {"changed": True, "message": "Your sign-in password has been changed. Sign in again."}
+
+
+@app.get("/policies", include_in_schema=False)
+def policies_page():
+    file = BASE_DIR / "static" / "policies.html"
+    if not file.exists():
+        return JSONResponse(status_code=503, content={"detail": "Policies page is not installed."})
+    return FileResponse(file)
