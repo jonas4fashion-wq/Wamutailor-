@@ -29,7 +29,7 @@ bearer = HTTPBearer(auto_error=False)
 
 TABLES = {
     "customers": {"fields": ["name", "phone", "email", "address", "notes"], "required": ["name", "phone"]},
-    "measurements": {"fields": ["customer_name", "customer_phone", "neck", "shoulder", "chest", "waist", "hip", "sleeve", "shirt_length", "trouser_length", "unit"], "required": ["customer_name", "customer_phone"]},
+    "measurements": {"fields": ["customer_name", "customer_phone", "measured_by", "measurement_date", "neck", "shoulder", "chest", "waist", "hip", "sleeve", "shirt_length", "trouser_length", "unit"], "required": ["customer_name", "customer_phone"]},
     "orders": {"fields": ["customer_name", "customer_phone", "product", "quantity", "unit_price", "total", "deposit", "balance", "material_cost", "labor_cost", "other_cost", "production_cost", "profit", "delivery_date", "status", "notes"], "required": ["customer_name", "customer_phone", "product"]},
     "payments": {"fields": ["order_id", "customer_name", "amount", "method", "payment_date", "reference", "notes"], "required": ["order_id", "amount"]},
     "inventory": {"fields": ["item_name", "unit", "quantity", "unit_cost", "minimum_stock", "notes"], "required": ["item_name", "unit"]},
@@ -65,6 +65,13 @@ def startup():
             cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'customers'"))]
         if "portal_password_hash" not in cols:
             con.execute(text("ALTER TABLE customers ADD COLUMN portal_password_hash TEXT"))
+        if engine.dialect.name == "sqlite":
+            measurement_cols = [row[1] for row in con.execute(text("PRAGMA table_info(measurements)"))]
+        else:
+            measurement_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'measurements'"))]
+        for measurement_col in ("measured_by", "measurement_date"):
+            if measurement_col not in measurement_cols:
+                con.execute(text(f"ALTER TABLE measurements ADD COLUMN {measurement_col} TEXT"))
         if engine.dialect.name == "sqlite":
             staff_cols = [row[1] for row in con.execute(text("PRAGMA table_info(staff)"))]
         else:
@@ -643,22 +650,6 @@ def client_dashboard(customer: dict = Depends(require_client)):
         else:
             payments = []
     return {"customer": {"name": customer["name"], "phone": phone, "email": customer.get("email")}, "orders": [dict(x) for x in orders], "measurements": [dict(x) for x in measurements], "payments": [dict(x) for x in payments]}
-
-
-@app.post("/api/client/measurements")
-def client_add_measurements(payload: dict[str, Any], customer: dict = Depends(require_client)):
-    table = TABLE_OBJECTS["measurements"]
-    allowed = ["neck", "shoulder", "chest", "waist", "hip", "sleeve", "shirt_length", "trouser_length", "unit"]
-    data = {key: str(payload.get(key, "")).strip() for key in allowed if payload.get(key) is not None}
-    if not any(data.get(key) for key in allowed if key != "unit"):
-        raise HTTPException(422, "Enter at least one body measurement.")
-    data["customer_name"] = str(customer.get("name") or "").strip()
-    data["customer_phone"] = str(customer.get("phone") or "").strip()
-    data["unit"] = data.get("unit") or "cm"
-    with engine.begin() as con:
-        result = con.execute(table.insert().values(**data))
-        measurement_id = result.inserted_primary_key[0]
-    return {"saved": True, "measurement_id": measurement_id, "message": "Your measurements have been submitted to WamuTailor."}
 
 
 @app.get("/api/admin/customers/{customer_id}/profile")
