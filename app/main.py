@@ -759,7 +759,10 @@ def client_catalog():
             stock = 0
         if active == "no" or stock <= 0:
             continue
-        item["photo_url"] = f"/api/products/{row['id']}/photo"
+        with engine.connect() as photo_con:
+            gallery = photo_con.execute(select(product_photos.c.id).where(product_photos.c.product_id == row["id"]).order_by(product_photos.c.id.asc())).all()
+        item["photo_urls"] = ["/api/products/" + str(row["id"]) + "/photos/" + str(photo.id) for photo in gallery]
+        item["photo_url"] = item["photo_urls"][0] if item["photo_urls"] else f"/api/products/{row['id']}/photo"
         item["in_stock"] = True
         catalog.append(item)
     return catalog
