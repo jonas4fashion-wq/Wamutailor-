@@ -30,7 +30,7 @@ bearer = HTTPBearer(auto_error=False)
 TABLES = {
     "customers": {"fields": ["name", "phone", "email", "address", "notes"], "required": ["name", "phone"]},
     "measurements": {"fields": ["customer_name", "customer_phone", "measured_by", "measurement_date", "neck", "shoulder", "chest", "waist", "hip", "sleeve", "shirt_length", "trouser_length", "unit"], "required": ["customer_name", "customer_phone"]},
-    "orders": {"fields": ["customer_name", "customer_phone", "product", "quantity", "unit_price", "total", "deposit", "balance", "material_cost", "labor_cost", "other_cost", "production_cost", "profit", "delivery_date", "status", "notes"], "required": ["customer_name", "customer_phone", "product"]},
+    "orders": {"fields": ["customer_name", "customer_phone", "product", "quantity", "unit_price", "total", "deposit", "balance", "material_cost", "labor_cost", "other_cost", "production_cost", "profit", "delivery_date", "status", "order_confirmation", "confirmed_by", "confirmation_notes", "notes"], "required": ["customer_name", "customer_phone", "product"]},
     "payments": {"fields": ["order_id", "customer_name", "amount", "method", "payment_date", "reference", "notes"], "required": ["order_id", "amount"]},
     "inventory": {"fields": ["item_name", "unit", "quantity", "unit_cost", "minimum_stock", "notes"], "required": ["item_name", "unit"]},
     "products": {"fields": ["name", "sku", "category", "description", "price", "currency", "stock_quantity", "active"], "required": ["name", "price"]},
@@ -103,6 +103,13 @@ def startup():
             order_cols = [row[1] for row in con.execute(text("PRAGMA table_info(orders)"))]
         else:
             order_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'orders'"))]
+        if engine.dialect.name == "sqlite":
+            order_confirmation_cols = [row[1] for row in con.execute(text("PRAGMA table_info(orders)"))]
+        else:
+            order_confirmation_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'orders'"))]
+        for order_col in ("order_confirmation", "confirmed_by", "confirmation_notes"):
+            if order_col not in order_confirmation_cols:
+                con.execute(text(f"ALTER TABLE orders ADD COLUMN {order_col} TEXT"))
         if engine.dialect.name == "sqlite":
             attendance_cols = [row[1] for row in con.execute(text("PRAGMA table_info(attendance)"))]
         else:
@@ -271,6 +278,7 @@ def create_record(module: str, payload: dict[str, Any], _: str = Depends(require
         raise HTTPException(422, f"Required fields: {', '.join(missing)}")
     data = {field: str(payload.get(field, "")).strip() for field in spec["fields"] if field in payload}
     if module == "orders":
+        data.setdefault("order_confirmation", "Pending")
         data.update(calculate_order_costs({**payload, **data}))
     if module == "payroll":
         def payroll_amount(key):
@@ -471,6 +479,39 @@ def low_stock_report(_: str = Depends(require_admin)):
             item["alert"] = "OUT OF STOCK" if quantity <= 0 else "LOW STOCK"
             alerts.append(item)
     return {"alert_count": len(alerts), "out_of_stock": sum(1 for x in alerts if x["quantity_numeric"] <= 0), "low_stock": sum(1 for x in alerts if x["quantity_numeric"] > 0), "items": alerts}
+
+
+@app.post("/api/admin/orders/{order_id}/decision")
+def decide_client_order(order_id: int, payload: dict[str, Any], admin: str = Depends(require_admin)):
+    decision = str(payload.get("decision", "")).strip()
+    if decision not in ("Accepted", "Rejected"):
+        raise HTTPException(422, "Decision must be Accepted or Rejected.")
+    table = TABLE_OBJECTS["orders"]
+    with engine.begin() as con:
+        order = con.execute(select(table).where(table.c.id == order_id)).mappings().first()
+        if not order:
+            raise HTTPException(404, "Order not found.")
+        current = str(order.get("order_confirmation") or "Pending")
+        if current != "Pending":
+            raise HTTPException(409, f"This order has already been {current.lower()}.")
+        if decision == "Rejected" and "Client portal cart order" in str(order.get("notes") or ""):
+            products = TABLE_OBJECTS["products"]
+            product = con.execute(select(products).where(products.c.name == order.get("product")).order_by(products.c.id.asc())).mappings().first()
+            try:
+                quantity = int(float(str(order.get("quantity") or "0")))
+                stock = int(float(str(product.get("stock_quantity") or "0").replace(",", ""))) if product else 0
+            except (TypeError, ValueError):
+                quantity, stock = 0, 0
+            if product and quantity > 0:
+                con.execute(products.update().where(products.c.id == product["id"]).values(stock_quantity=str(stock + quantity)))
+        con.execute(table.update().where(table.c.id == order_id).values(
+            order_confirmation=decision,
+            confirmed_by=admin,
+            confirmation_notes=str(payload.get("notes", "")).strip(),
+            status=("Confirmed" if decision == "Accepted" else "Rejected")
+        ))
+        updated = con.execute(select(table).where(table.c.id == order_id)).mappings().one()
+    return dict(updated)
 
 
 @app.post("/api/admin/attendance/{record_id}/approve")
