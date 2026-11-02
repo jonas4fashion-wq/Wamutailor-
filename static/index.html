@@ -1,72 +1,49 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101010">
-  <title>WamuTailor | Admin</title>
-  <style>
-    :root { color-scheme: dark; --bg:#101010; --panel:#191919; --line:#34302a; --gold:#d5b15e; --muted:#aaa49a; --text:#f5f1e8; }
-    * { box-sizing:border-box; }
-    body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 Inter,system-ui,Segoe UI,sans-serif; }
-    header { padding:26px clamp(18px,5vw,64px); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:18px; align-items:center; }
-    .brand { letter-spacing:.16em; font-weight:800; color:var(--gold); }
-    .sub { color:var(--muted); font-size:12px; letter-spacing:.12em; text-transform:uppercase; }
-    main { max-width:1120px; margin:auto; padding:38px 20px 64px; }
-    h1 { font-size:clamp(28px,5vw,44px); margin:8px 0; }
-    .intro { color:var(--muted); max-width:700px; }
-    .status { display:inline-flex; gap:8px; align-items:center; border:1px solid var(--line); border-radius:99px; padding:6px 11px; color:var(--gold); font-size:12px; }
-    .dot { width:7px; height:7px; background:#d5b15e; border-radius:50%; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin:28px 0; }
-    .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
-    .card strong { display:block; font-size:25px; color:var(--gold); margin:4px 0; }
-    .card span { color:var(--muted); font-size:13px; }
-    h2 { font-size:18px; margin:34px 0 12px; }
-    .modules { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
-    .module { background:var(--panel); border:1px solid var(--line); padding:14px 16px; border-radius:10px; }
-    .module b { display:block; font-size:14px; }
-    .module small { color:var(--muted); }
-    .note { border-left:3px solid var(--gold); background:#211e18; padding:14px 17px; border-radius:5px; color:#d9d2c4; margin-top:24px; }
-    footer { color:var(--muted); border-top:1px solid var(--line); padding:20px; text-align:center; font-size:12px; }
-    a { color:var(--gold); }
-  </style>
-</head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WamuTailor | Management</title>
+<style>
+:root{color-scheme:dark;--bg:#101010;--panel:#1b1b1b;--line:#39342a;--gold:#d8b45e;--muted:#aaa49a;--text:#f5f1e8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,system-ui,Arial}
+header{padding:22px clamp(18px,4vw,48px);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:15px}
+.brand{color:var(--gold);font-weight:800;letter-spacing:.18em}.sub{color:var(--muted);font-size:12px}
+main{max-width:1200px;margin:auto;padding:30px 18px 60px}h1{margin:5px 0 8px;font-size:clamp(28px,4vw,40px)}h2{font-size:19px}
+.nav{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}.nav button,.action{border:1px solid var(--line);background:#24221d;color:var(--gold);padding:10px 14px;border-radius:9px;cursor:pointer}
+.nav button.active{background:var(--gold);color:#17130b}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+label{font-size:12px;color:var(--muted)}input,select,textarea{width:100%;margin-top:5px;padding:11px;border-radius:8px;border:1px solid var(--line);background:#111;color:var(--text)}
+button.primary{background:var(--gold);color:#17130b;border:0;border-radius:8px;padding:11px 18px;font-weight:700;cursor:pointer}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--gold)}.tablewrap{overflow:auto}.muted{color:var(--muted)}#message{margin:12px 0;color:var(--gold)}
+@media(max-width:600px){header{align-items:flex-start;flex-direction:column}.panel{padding:12px}}
+</style></head>
 <body>
-  <header>
-    <div><div class="brand">WAMUTAILOR</div><div class="sub">Fashion House · Kigali</div></div>
-    <div class="status"><i class="dot"></i> Deployment foundation</div>
-  </header>
-  <main>
-    <div class="sub">Management workspace</div>
-    <h1>Admin Dashboard</h1>
-    <p class="intro">A central workspace for WamuTailor customers, measurements, orders, payments, production and inventory. This first online-ready version establishes the application and health checks.</p>
-    <section class="grid" aria-label="System status">
-      <div class="card"><span>Application</span><strong>Online-ready</strong><span>FastAPI foundation</span></div>
-      <div class="card"><span>Backend health</span><strong id="health">Checking…</strong><span id="health-detail">Contacting server</span></div>
-      <div class="card"><span>Database</span><strong>Not connected</strong><span>PostgreSQL setup is next</span></div>
-      <div class="card"><span>Security</span><strong>Setup pending</strong><span>Authentication required before real data</span></div>
-    </section>
-    <h2>Development modules</h2>
-    <section class="modules">
-      <div class="module"><b>Customer Management</b><small>Registration, search, update and delete — prototype</small></div>
-      <div class="module"><b>Measurements</b><small>Customer measurement records — prototype</small></div>
-      <div class="module"><b>Orders & Production</b><small>Order creation, search and status — prototype</small></div>
-      <div class="module"><b>Payments & Reports</b><small>Payment history and sales reports — prototype</small></div>
-      <div class="module"><b>Inventory</b><small>Stock, movements and reports — prototype</small></div>
-      <div class="module"><b>Material Recipes & Usage</b><small>Material recipes and order usage — prototype</small></div>
-    </section>
-    <div class="note"><b>Important:</b> This is not yet the live business system. Database storage, staff login, permissions, backups and security checks must be completed before entering real customer measurements, contact details or payment records.</div>
-    <p class="sub" style="margin-top:24px">API documentation: <a href="/docs">Open API docs</a> · Health: <a href="/health">Check service health</a></p>
-  </main>
-  <footer>WamuTailor Fashion · Kigali, Rwanda</footer>
-  <script>
-    fetch('/health').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
-      document.getElementById('health').textContent = 'Healthy';
-      document.getElementById('health-detail').textContent = data.status;
-    }).catch(() => {
-      document.getElementById('health').textContent = 'Unavailable';
-      document.getElementById('health-detail').textContent = 'Refresh after the server starts';
-    });
-  </script>
-</body>
-</html>
+<header><div><div class="brand">WAMUTAILOR</div><div class="sub">FASHION HOUSE · KIGALI</div></div><div class="sub">MANAGEMENT SYSTEM · ADMIN</div></header>
+<main>
+<div class="sub">BUSINESS WORKSPACE</div><h1>Management Dashboard</h1>
+<p class="muted">Customers · Measurements · Orders · Payments · Inventory</p>
+<div id="message">Connecting securely…</div>
+<div class="nav" id="nav"></div>
+<section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
+<section class="panel"><h2>Records</h2><div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></section>
+<p class="sub">Prototype release 0.2 · Do not enter real customer data until PostgreSQL persistence, backups and full production security are completed.</p>
+</main>
+<script>
+const configs={
+ customers:{title:"Customers",fields:[["name","Customer name"],["phone","Phone"],["email","Email"],["address","Address"],["notes","Notes"]]},
+ measurements:{title:"Measurements (cm)",fields:[["customer_name","Customer name"],["customer_phone","Customer phone"],["neck","Neck"],["shoulder","Shoulder"],["chest","Chest"],["waist","Waist"],["hip","Hip"],["sleeve","Sleeve"],["shirt_length","Shirt length"],["trouser_length","Trouser length"],["unit","Unit (cm)"]]},
+ orders:{title:"Orders",fields:[["customer_name","Customer name"],["customer_phone","Customer phone"],["product","Product"],["quantity","Quantity"],["unit_price","Unit price (RWF)"],["total","Total (RWF)"],["deposit","Deposit (RWF)"],["balance","Balance (RWF)"],["delivery_date","Delivery date"],["status","Status"],["notes","Notes"]]},
+ payments:{title:"Payments",fields:[["order_id","Order ID"],["customer_name","Customer name"],["amount","Amount (RWF)"],["method","Method"],["payment_date","Payment date"],["reference","Reference"],["notes","Notes"]]},
+ inventory:{title:"Inventory",fields:[["item_name","Item name"],["unit","Unit"],["quantity","Quantity"],["unit_cost","Unit cost"],["minimum_stock","Minimum stock"],["notes","Notes"]]}
+};
+let current="customers";
+const nav=document.getElementById("nav"), form=document.getElementById("recordForm");
+function message(t){document.getElementById("message").textContent=t}
+function renderNav(){nav.innerHTML="";Object.entries(configs).forEach(([key,c])=>{const b=document.createElement("button");b.textContent=c.title;b.className=key===current?"active":"";b.onclick=()=>{current=key;renderNav();renderForm();loadRecords()};nav.appendChild(b)})}
+function renderForm(){const c=configs[current];document.getElementById("moduleTitle").textContent=c.title;form.innerHTML="";c.fields.forEach(([key,label])=>{const wrap=document.createElement("label");wrap.textContent=label;const input=document.createElement("input");input.name=key;input.autocomplete="off";wrap.appendChild(input);form.appendChild(wrap)})}
+async function api(path,options={}){const r=await fetch(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.detail||("Request failed: "+r.status))}return r.status===204?null:r.json()}
+async function loadRecords(){try{const rows=await api("/api/"+current);const cols=configs[current].fields.map(x=>x[0]);document.getElementById("thead").innerHTML="<tr><th>ID</th>"+cols.map(k=>"<th>"+k.replaceAll("_"," ")+"</th>").join("")+"<th>Action</th></tr>";const body=document.getElementById("tbody");body.innerHTML="";rows.forEach(row=>{const tr=document.createElement("tr");tr.innerHTML="<td>"+row.id+"</td>"+cols.map(k=>"<td></td>").join("")+"<td><button class='action' data-id='"+row.id+"'>Delete</button></td>";cols.forEach((k,i)=>tr.children[i+1].textContent=row[k]??"");tr.querySelector("button").onclick=()=>deleteRecord(row.id);body.appendChild(tr)});message(rows.length+" records loaded")}catch(e){message(e.message)}}
+async function deleteRecord(id){if(!confirm("Delete record #"+id+"?"))return;try{await api("/api/"+current+"/"+id,{method:"DELETE"});await loadRecords()}catch(e){message(e.message)}}
+document.getElementById("saveBtn").onclick=async()=>{const payload=Object.fromEntries(new FormData(form).entries());try{await api("/api/"+current,{method:"POST",body:JSON.stringify(payload)});form.reset();await loadRecords();message("Record saved")}catch(e){message(e.message)}};
+renderNav();renderForm();loadRecords();
+</script></body></html>
