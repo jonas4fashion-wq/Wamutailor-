@@ -21,7 +21,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <header><div><div class="brand">WAMUTAILOR</div><div class="sub">FASHION HOUSE · KIGALI</div></div><div class="sub">MANAGEMENT SYSTEM · ADMIN · <a href="/" style="color:var(--gold)">BOOK HOME</a></div></header>
 <main>
 <div class="sub">BUSINESS WORKSPACE</div><h1>Management Dashboard</h1>
-<p class="muted">Customers · Measurements · Orders · Payments · Inventory</p>
+<p class="muted">Customers · Measurements · Orders · Payments · Inventory · Staff · Tasks</p>
 <div id="message">Connecting securely…</div>
 <div class="nav" id="nav"></div>
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
@@ -36,7 +36,9 @@ const configs={
  orders:{title:"Orders",fields:[["customer_name","Customer name"],["customer_phone","Customer phone"],["product","Product"],["quantity","Quantity"],["unit_price","Unit price (RWF)"],["total","Total (RWF)"],["deposit","Deposit (RWF)"],["balance","Balance (RWF)"],["material_cost","Material cost (RWF)"],["labor_cost","Labor cost (RWF)"],["other_cost","Other production cost (RWF)"],["delivery_date","Delivery date"],["status","Status"],["notes","Notes"]]},
  payments:{title:"Payments",fields:[["order_id","Order ID"],["customer_name","Customer name"],["amount","Amount (RWF)"],["method","Method"],["payment_date","Payment date"],["reference","Reference"],["notes","Notes"]]},
  inventory:{title:"Inventory",fields:[["item_name","Item name"],["unit","Unit"],["quantity","Quantity"],["unit_cost","Unit cost"],["minimum_stock","Minimum stock"],["notes","Notes"]]},
- products:{title:"Products",fields:[["name","Product name"],["sku","SKU / Code"],["category","Category"],["description","Description"],["price","Price (RWF)"],["currency","Currency"],["stock_quantity","Finished stock quantity"],["active","Active (yes/no)"]]}
+ products:{title:"Products",fields:[["name","Product name"],["sku","SKU / Code"],["category","Category"],["description","Description"],["price","Price (RWF)"],["currency","Currency"],["stock_quantity","Finished stock quantity"],["active","Active (yes/no)"]]},
+ staff:{title:"Staff",fields:[["name","Staff name"],["phone","Phone"],["role","Role / Position"],["skills","Skills"],["status","Status (Active/Inactive)"],["notes","Notes"]]},
+ tasks:{title:"Staff Tasks",fields:[["task_name","Task / Work"],["staff_name","Assigned staff member"],["order_id","Order ID (optional)"],["customer_name","Customer name"],["start_date","Start date"],["due_date","Deadline"],["priority","Priority (Low/Normal/High)"],["status","Status (To Do/In Progress/Done/Blocked)"],["notes","Instructions / Notes"]]}
 };
 let current="customers", cachedRows=[];
 const nav=document.getElementById("nav"), form=document.getElementById("recordForm");
