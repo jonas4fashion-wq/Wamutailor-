@@ -26,6 +26,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <div class="nav" id="nav"></div>
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
 <section class="panel"><h2>Production Cost & Profit Report</h2><button class="action" id="loadCostReport" type="button">Calculate report</button><div id="costReport" class="muted" style="margin-top:12px">Click to calculate totals from saved orders.</div></section>
+<section class="panel"><h2>Staff Task Overview</h2><p class="muted">Review assignments, deadlines and overdue work by staff member.</p><button class="action" id="loadTaskOverview" type="button">Refresh task overview</button><div id="taskOverview" class="muted" style="margin-top:12px">Click to load staff tasks.</div></section>
 <section class="panel" id="profilePanel" style="display:none"><h2>Customer Profile</h2><div id="profileContent"></div><button class="action" id="closeProfile" type="button">Close profile</button></section><section class="panel"><h2>Records</h2><input id="recordSearch" placeholder="Search records..." style="max-width:360px"><button class="action" id="exportBtn" type="button">Export CSV</button><div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></section>
 <p class="sub">WamuTailor Management · Keep regular database backups and verify each order and payment.</p>
 </main>
@@ -81,6 +82,37 @@ async function editRecord(row){const fields=configs[current].fields;const change
 async function deleteRecord(id){if(!confirm("Delete record #"+id+"?"))return;try{await api("/api/"+current+"/"+id,{method:"DELETE"});await loadRecords()}catch(e){message(e.message)}}
 async function loadCostReport(){try{const r=await api("/api/admin/reports/production-costs");const money=v=>Number(v||0).toLocaleString("en-US",{maximumFractionDigits:0})+" RWF";document.getElementById("costReport").innerHTML="<p>Orders: "+r.orders+"</p><p>Revenue: "+money(r.revenue)+"</p><p>Material cost: "+money(r.material_cost)+"</p><p>Labor cost: "+money(r.labor_cost)+"</p><p>Other production cost: "+money(r.other_cost)+"</p><p>Total production cost: "+money(r.production_cost)+"</p><p><strong>Estimated profit: "+money(r.profit)+"</strong></p><p>Deposits received: "+money(r.deposits)+"</p><p>Balance due: "+money(r.balance_due)+"</p>";}catch(e){message(e.message)}}
 document.getElementById("loadCostReport").onclick=loadCostReport;
+async function loadTaskOverview(){
+ const root=document.getElementById("taskOverview");
+ root.textContent="Loading tasks…";
+ try{
+  const [tasks,staff]=await Promise.all([api("/api/tasks"),api("/api/staff")]);
+  const today=new Date();today.setHours(0,0,0,0);
+  const norm=v=>String(v||"").trim().toLowerCase();
+  const done=t=>["done","completed","finished"].includes(norm(t.status));
+  const overdue=t=>!done(t)&&t.due_date&&new Date(t.due_date+"T00:00:00")<today;
+  const counts={total:tasks.length,active:tasks.filter(t=>!done(t)).length,overdue:tasks.filter(overdue).length,done:tasks.filter(done).length};
+  root.innerHTML="";
+  const summary=document.createElement("p");
+  summary.textContent="Total tasks: "+counts.total+" · Active: "+counts.active+" · Overdue: "+counts.overdue+" · Completed: "+counts.done;
+  root.appendChild(summary);
+  const names=[...new Set([...staff.map(x=>x.name),...tasks.map(x=>x.staff_name)].filter(Boolean))].sort();
+  if(!names.length){const empty=document.createElement("p");empty.textContent="No staff or tasks have been added yet.";root.appendChild(empty);return}
+  names.forEach(name=>{
+   const assigned=tasks.filter(t=>norm(t.staff_name)===norm(name));
+   const section=document.createElement("div");section.className="panel";
+   const heading=document.createElement("h3");heading.style.color="var(--gold)";heading.textContent=name+" · "+assigned.length+" task(s)";section.appendChild(heading);
+   if(!assigned.length){const p=document.createElement("p");p.className="muted";p.textContent="No tasks assigned.";section.appendChild(p)}
+   assigned.sort((a,b)=>String(a.due_date||"9999").localeCompare(String(b.due_date||"9999"))).forEach(t=>{
+    const line=document.createElement("p");
+    line.textContent=(overdue(t)?"⚠ OVERDUE · ":"")+t.task_name+" · "+(t.status||"To Do")+" · Due: "+(t.due_date||"Not set")+(t.order_id?" · Order #"+t.order_id:"");
+    section.appendChild(line);
+   });
+   root.appendChild(section);
+  });
+ }catch(e){root.textContent="Could not load task overview: "+e.message}
+}
+document.getElementById("loadTaskOverview").onclick=loadTaskOverview;
 
 document.getElementById("saveBtn").onclick=async()=>{const btn=document.getElementById("saveBtn");const fd=new FormData(form);const photo=fd.get("product_photo");fd.delete("product_photo");const payload=Object.fromEntries(fd.entries());if(current==="products"&&photo&&photo.size){if(!["image/jpeg","image/png","image/webp"].includes(photo.type)){message("Choose a JPG, PNG or WEBP image.");return}if(photo.size>4*1024*1024){message("This photo is larger than 4 MB. Choose a smaller image.");return}}btn.disabled=true;btn.textContent="Saving...";try{message("Step 1 of 2: saving product details...");const saved=await api("/api/"+current,{method:"POST",body:JSON.stringify(payload)});if(current==="products"&&photo&&photo.size){if(!saved||!saved.id)throw new Error("Product was saved but the server did not return its ID. Refresh Products and try editing the product photo.");message("Step 2 of 2: uploading photo...");const upload=new FormData();upload.append("photo",photo,photo.name);const res=await fetch("/api/admin/products/"+saved.id+"/photo",{method:"POST",headers:{"Authorization":authHeader},body:upload});let result={};try{result=await res.json()}catch{}if(!res.ok)throw new Error("Product saved, but photo upload failed ("+res.status+"): "+(result.detail||"Please try a JPG, PNG or WEBP image under 4 MB."));message("Product and photo saved successfully.");}else{message("Product details saved. No photo was selected.");}form.reset();await loadRecords();}catch(e){message("SAVE ERROR: "+(e.message||"Unknown error"));}finally{btn.disabled=false;btn.textContent="Save record";}};
 
