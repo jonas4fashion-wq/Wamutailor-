@@ -27,6 +27,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <section class="panel"><h2 id="moduleTitle">Customers</h2><form id="recordForm"></form><div style="margin-top:12px"><button class="primary" id="saveBtn" type="button">Save record</button></div></section>
 <section class="panel"><h2>Production Cost & Profit Report</h2><button class="action" id="loadCostReport" type="button">Calculate report</button><div id="costReport" class="muted" style="margin-top:12px">Click to calculate totals from saved orders.</div></section>
 <section class="panel"><h2>Business Expense Report</h2><p class="muted">Track rent, utilities, transport, supplies and other operating expenses.</p><button class="action" id="loadExpenseReport" type="button">Calculate expense report</button><div id="expenseReport" class="muted" style="margin-top:12px">Click to calculate recorded business expenses.</div></section>
+<section class="panel"><h2>Order Production Workflow</h2><p class="muted">Track each customer order through cutting, sewing, finishing and delivery. Assign a staff member and deadline to every stage.</p><div id="workflowForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px"><label>Order<select id="wfOrder"><option value="">Choose an order</option></select></label><label>Production stage<select id="wfStage"><option>Measurements confirmation</option><option>Pattern making</option><option>Fabric cutting</option><option>Sewing</option><option>Fitting</option><option>Finishing</option><option>Quality check</option><option>Ready for collection</option><option>Delivered</option></select></label><label>Assigned staff<select id="wfStaff"><option value="">Choose staff</option></select></label><label>Start date<input id="wfStart" type="date"></label><label>Deadline<input id="wfDue" type="date"></label><label>Status<select id="wfStatus"><option>To Do</option><option>In Progress</option><option>Done</option><option>Blocked</option></select></label><label style="grid-column:1/-1">Instructions / notes<input id="wfNotes" placeholder="Fabric, fitting notes, alterations…"></label></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary" id="wfSave" type="button">Add production stage</button><button class="action" id="wfRefresh" type="button">Refresh workflow</button><button class="action" id="wfCancel" type="button" style="display:none">Cancel edit</button></div><div id="workflowList" style="margin-top:14px" class="muted">Choose an order to see its production stages.</div></section>
 <section class="panel"><h2>Staff Task Overview</h2><p class="muted">Review assignments, deadlines and overdue work by staff member.</p><button class="action" id="loadTaskOverview" type="button">Refresh task overview</button><div id="taskOverview" class="muted" style="margin-top:12px">Click to load staff tasks.</div></section>
 <section class="panel" id="profilePanel" style="display:none"><h2>Customer Profile</h2><div id="profileContent"></div><button class="action" id="closeProfile" type="button">Close profile</button></section><section class="panel"><h2>Records</h2><input id="recordSearch" placeholder="Search records..." style="max-width:360px"><button class="action" id="exportBtn" type="button">Export CSV</button><div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></section>
 <p class="sub">WamuTailor Management · Keep regular database backups and verify each order and payment.</p>
@@ -123,6 +124,50 @@ async function loadExpenseReport(){
  }catch(e){message(e.message)}
 }
 document.getElementById("loadExpenseReport").onclick=loadExpenseReport;
+
+let workflowEditId=null;
+async function loadWorkflowOptions(){
+ try{
+  const [orders,staff]=await Promise.all([api("/api/orders"),api("/api/staff")]);
+  const orderSel=document.getElementById("wfOrder"),staffSel=document.getElementById("wfStaff");
+  const oldOrder=orderSel.value,oldStaff=staffSel.value;
+  orderSel.innerHTML='<option value="">Choose an order</option>';
+  orders.forEach(o=>{const opt=document.createElement("option");opt.value=o.id;opt.textContent="#"+o.id+" · "+o.customer_name+" · "+o.product;orderSel.appendChild(opt)});
+  staffSel.innerHTML='<option value="">Choose staff</option>';
+  staff.filter(x=>String(x.status||"active").toLowerCase()!=="inactive").forEach(x=>{const opt=document.createElement("option");opt.value=x.name;opt.textContent=x.name+" · "+(x.role||"");staffSel.appendChild(opt)});
+  if(oldOrder)orderSel.value=oldOrder;if(oldStaff)staffSel.value=oldStaff;
+ }catch(e){message("Workflow options: "+e.message)}
+}
+function resetWorkflowForm(){workflowEditId=null;["wfStage","wfStart","wfDue","wfNotes"].forEach(id=>document.getElementById(id).value="");document.getElementById("wfStatus").value="To Do";document.getElementById("wfSave").textContent="Add production stage";document.getElementById("wfCancel").style.display="none"}
+async function loadWorkflow(){
+ const orderId=document.getElementById("wfOrder").value,root=document.getElementById("workflowList");
+ if(!orderId){root.textContent="Choose an order to see its production stages.";return}
+ try{
+  const tasks=await api("/api/tasks");const rows=tasks.filter(t=>String(t.order_id||"")===String(orderId)).sort((a,b)=>String(a.start_date||"").localeCompare(String(b.start_date||"")));
+  root.innerHTML="";
+  const order=document.getElementById("wfOrder").selectedOptions[0]?.textContent||("Order #"+orderId);
+  const heading=document.createElement("h3");heading.style.color="var(--gold)";heading.textContent=order+" · "+rows.length+" production stage(s)";root.appendChild(heading);
+  if(!rows.length){const p=document.createElement("p");p.textContent="No stages recorded yet. Add the first stage above.";root.appendChild(p);return}
+  rows.forEach(t=>{
+   const card=document.createElement("div");card.className="panel";
+   const title=document.createElement("strong");title.textContent=t.task_name+" · "+(t.status||"To Do");card.appendChild(title);
+   const detail=document.createElement("p");detail.className="muted";detail.textContent="Assigned: "+(t.staff_name||"Unassigned")+" · Start: "+(t.start_date||"—")+" · Deadline: "+(t.due_date||"—")+(t.notes?" · "+t.notes:"");card.appendChild(detail);
+   const edit=document.createElement("button");edit.className="action";edit.textContent="Update stage";edit.onclick=()=>{workflowEditId=t.id;document.getElementById("wfStage").value=t.task_name;document.getElementById("wfStaff").value=t.staff_name||"";document.getElementById("wfStart").value=t.start_date||"";document.getElementById("wfDue").value=t.due_date||"";document.getElementById("wfStatus").value=t.status||"To Do";document.getElementById("wfNotes").value=t.notes||"";document.getElementById("wfSave").textContent="Save stage changes";document.getElementById("wfCancel").style.display="inline-block";document.getElementById("workflowForm").scrollIntoView({behavior:"smooth"})};card.appendChild(edit);root.appendChild(card);
+  });
+ }catch(e){root.textContent="Could not load workflow: "+e.message}
+}
+document.getElementById("wfOrder").addEventListener("change",loadWorkflow);
+document.getElementById("wfRefresh").onclick=loadWorkflow;
+document.getElementById("wfCancel").onclick=resetWorkflowForm;
+document.getElementById("wfSave").onclick=async()=>{
+ const orderId=document.getElementById("wfOrder").value,staff=document.getElementById("wfStaff").value;
+ if(!orderId){message("Choose an order first.");return}if(!staff){message("Assign a staff member to this stage.");return}
+ const selected=document.getElementById("wfOrder").selectedOptions[0]?.textContent||"";
+ const customer=selected.split(" · ")[1]||"";
+ const payload={task_name:document.getElementById("wfStage").value,staff_name:staff,order_id:orderId,customer_name:customer,start_date:document.getElementById("wfStart").value,due_date:document.getElementById("wfDue").value,status:document.getElementById("wfStatus").value,priority:"Normal",notes:document.getElementById("wfNotes").value};
+ try{if(workflowEditId){await api("/api/tasks/"+workflowEditId,{method:"PUT",body:JSON.stringify(payload)});message("Production stage updated.")}else{await api("/api/tasks",{method:"POST",body:JSON.stringify(payload)});message("Production stage added.")}resetWorkflowForm();await loadWorkflow();loadTaskOverview()}catch(e){message("Workflow error: "+e.message)}
+};
+
 async function loadTaskOverview(){
  const root=document.getElementById("taskOverview");
  root.textContent="Loading tasks…";
