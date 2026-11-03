@@ -931,7 +931,7 @@ def client_cart_checkout(payload: dict[str, Any], customer: dict = Depends(requi
             if price <= 0:
                 raise HTTPException(422, f"Please contact WamuTailor to confirm the price of {product.get('name')}.")
             total = price * quantity
-            result = con.execute(orders.insert().values(customer_name=customer["name"], customer_phone=customer["phone"], product=product.get("name"), quantity=str(quantity), unit_price=str(price), total=str(total), deposit="0", balance=str(total), production_cost="0", profit=str(total), status="Received", notes="Client portal cart order"))
+            result = con.execute(orders.insert().values(customer_name=customer["name"], customer_phone=customer["phone"], product=product.get("name"), quantity=str(quantity), unit_price=str(price), total=str(total), deposit="0", balance=str(total), production_cost="0", profit=str(total), status="Received", order_confirmation="Pending", confirmed_by="", confirmation_notes="", notes="Client portal cart order"))
             order_id = result.inserted_primary_key[0]
             con.execute(products.update().where(products.c.id == product_id).values(stock_quantity=str(stock - quantity)))
             created.append({"order_id": order_id, "product": product.get("name"), "quantity": quantity, "total": total})
