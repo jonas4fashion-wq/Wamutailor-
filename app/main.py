@@ -30,7 +30,7 @@ bearer = HTTPBearer(auto_error=False)
 TABLES = {
     "customers": {"fields": ["name", "phone", "email", "address", "notes"], "required": ["name", "phone"]},
     "measurements": {"fields": ["customer_name", "customer_phone", "measured_by", "measurement_date", "neck", "shoulder", "chest", "waist", "hip", "sleeve", "shirt_length", "trouser_length", "unit"], "required": ["customer_name", "customer_phone"]},
-    "orders": {"fields": ["customer_name", "customer_phone", "product", "quantity", "unit_price", "total", "deposit", "balance", "material_cost", "labor_cost", "other_cost", "production_cost", "profit", "delivery_date", "status", "order_confirmation", "confirmed_by", "confirmation_notes", "notes"], "required": ["customer_name", "customer_phone", "product"]},
+    "orders": {"fields": ["customer_name", "customer_phone", "product_id", "product", "quantity", "unit_price", "total", "deposit", "balance", "material_cost", "labor_cost", "other_cost", "production_cost", "profit", "delivery_date", "status", "order_confirmation", "confirmed_by", "confirmation_notes", "notes"], "required": ["customer_name", "customer_phone", "product"]},
     "payments": {"fields": ["order_id", "customer_name", "amount", "method", "payment_date", "reference", "notes"], "required": ["order_id", "amount"]},
     "inventory": {"fields": ["item_name", "unit", "quantity", "unit_cost", "minimum_stock", "notes"], "required": ["item_name", "unit"]},
     "products": {"fields": ["name", "sku", "category", "description", "price", "currency", "stock_quantity", "active"], "required": ["name", "price"]},
@@ -103,6 +103,8 @@ def startup():
             order_cols = [row[1] for row in con.execute(text("PRAGMA table_info(orders)"))]
         else:
             order_cols = [row[0] for row in con.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'orders'"))]
+        if "product_id" not in order_cols:
+            con.execute(text("ALTER TABLE orders ADD COLUMN product_id TEXT"))
         if engine.dialect.name == "sqlite":
             order_confirmation_cols = [row[1] for row in con.execute(text("PRAGMA table_info(orders)"))]
         else:
@@ -496,7 +498,14 @@ def decide_client_order(order_id: int, payload: dict[str, Any], admin: str = Dep
             raise HTTPException(409, f"This order has already been {current.lower()}.")
         if decision == "Rejected" and "Client portal cart order" in str(order.get("notes") or ""):
             products = TABLE_OBJECTS["products"]
-            product = con.execute(select(products).where(products.c.name == order.get("product")).order_by(products.c.id.asc())).mappings().first()
+            product = None
+            try:
+                product_id = int(str(order.get("product_id") or "").strip())
+                product = con.execute(select(products).where(products.c.id == product_id)).mappings().first()
+            except (TypeError, ValueError):
+                # Legacy orders did not store product_id. Restore stock only when the name is unique.
+                matches = con.execute(select(products).where(products.c.name == order.get("product"))).mappings().all()
+                product = matches[0] if len(matches) == 1 else None
             try:
                 quantity = int(float(str(order.get("quantity") or "0")))
                 stock = int(float(str(product.get("stock_quantity") or "0").replace(",", ""))) if product else 0
@@ -931,7 +940,7 @@ def client_cart_checkout(payload: dict[str, Any], customer: dict = Depends(requi
             if price <= 0:
                 raise HTTPException(422, f"Please contact WamuTailor to confirm the price of {product.get('name')}.")
             total = price * quantity
-            result = con.execute(orders.insert().values(customer_name=customer["name"], customer_phone=customer["phone"], product=product.get("name"), quantity=str(quantity), unit_price=str(price), total=str(total), deposit="0", balance=str(total), production_cost="0", profit=str(total), status="Received", order_confirmation="Pending", confirmed_by="", confirmation_notes="", notes="Client portal cart order"))
+            result = con.execute(orders.insert().values(customer_name=customer["name"], customer_phone=customer["phone"], product_id=str(product_id), product=product.get("name"), quantity=str(quantity), unit_price=str(price), total=str(total), deposit="0", balance=str(total), production_cost="0", profit=str(total), status="Received", order_confirmation="Pending", confirmed_by="", confirmation_notes="", notes="Client portal cart order"))
             order_id = result.inserted_primary_key[0]
             con.execute(products.update().where(products.c.id == product_id).values(stock_quantity=str(stock - quantity)))
             created.append({"order_id": order_id, "product": product.get("name"), "quantity": quantity, "total": total})
